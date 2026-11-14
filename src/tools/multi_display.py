@@ -27,7 +27,6 @@ from typing import Dict, List, Optional, Tuple
 
 from utils.logger import LogLevel, Logger
 from utils.settings import load_settings, save_settings
-from tools.globals import get_current_session
 from tools import kanshi
 
 MODE_JOIN = "join"
@@ -177,8 +176,12 @@ class KanshiBackend(DisplayBackend):
             x += self._logical_width(o, scale)
         return plans
 
+    def _fallback_exec(self) -> str:
+        helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "display_fallback.py")
+        return " ".join(shlex.quote(a) for a in ("python3", helper, self.name))
+
     def _commit(self, plans: List[kanshi.OutputPlan], execs: List[str]) -> bool:
-        return kanshi.apply_profile(kanshi.Profile(plans, execs), self.logging)
+        return kanshi.apply_profile(kanshi.Profile(plans, execs), self.logging, self._fallback_exec())
 
     # --- operations -----------------------------------------------------------
     def apply(self, mode: str, primary: str) -> bool:
@@ -222,6 +225,21 @@ class KanshiBackend(DisplayBackend):
     def restore(self, snapshot: List[OutputInfo]) -> bool:
         plans = [self._plan(o, o.enabled, (o.x, o.y)) for o in snapshot]
         return self._commit(plans, self._current_mirror_execs(snapshot))
+
+    def fallback(self) -> bool:
+        """Run by kanshi's catch-all profile when no profile matches the
+        connected displays. If none of them is on (e.g. the only display that
+        was on got unplugged), turn them all on, joined, and save that as the
+        profile for these displays."""
+        outputs = self.list_outputs()
+        if not outputs or any(o.enabled for o in outputs):
+            return True
+        names = [o.name for o in outputs]
+        saved = load_settings(self.logging).get(PRIMARY_SETTING_KEY)
+        primary = saved if saved in names else min(outputs, key=lambda o: (not o.is_builtin, o.name)).name
+        self.logging.log(LogLevel.Info, f"No display is on, turning on {', '.join(names)}")
+        # The saved primary is left as is, so it's kept for when it's reconnected
+        return self._commit(self._join_plans(outputs, primary), self._unmirror_execs())
 
     def _current_mirror_execs(self, outputs: List[OutputInfo]) -> List[str]:
         mirrored = [o for o in outputs if o.enabled and o.mirror_of]
@@ -396,8 +414,13 @@ class HyprlandBackend(KanshiBackend):
 
 # ---------------------------------------------------------------------------
 
+BACKENDS = {b.name: b for b in (SwayBackend, HyprlandBackend)}
+
+
 def get_display_backend(logging: Logger) -> Optional[DisplayBackend]:
     """Pick the multi-display backend for the running session, or None if unsupported"""
+    # Imported here: tools.globals pulls in GTK, which display_fallback.py doesn't need
+    from tools.globals import get_current_session
     session = get_current_session()
     wayland_ok = kanshi.available()
     if (os.environ.get("HYPRLAND_INSTANCE_SIGNATURE") or session == "Hyprland") and shutil.which("hyprctl") and wayland_ok:

@@ -9,6 +9,11 @@ whenever that set of displays is connected again (hotplug, login, ...).
 The profiles MicroControl writes live in a marked block at the top of the
 config (kanshi uses the first matching profile, so they take precedence);
 anything outside that block is left untouched.
+
+A catch-all profile at the end of the config matches whenever no other
+profile does, and runs MicroControl's fallback (see KanshiBackend.fallback),
+which turns the displays back on if none of them is, e.g. after unplugging
+the only display that was on.
 """
 
 import hashlib
@@ -27,6 +32,9 @@ SERVICE = "microcontrol-kanshi.service"
 PROFILE_PREFIX = "microcontrol-"
 BLOCK_BEGIN = "# >>> microcontrol: display profiles managed by MicroControl (edits in this block are overwritten) >>>"
 BLOCK_END = "# <<< microcontrol <<<"
+FALLBACK_BEGIN = "# >>> microcontrol: fallback when no other profile matches (edits in this block are overwritten) >>>"
+FALLBACK_END = "# <<< microcontrol fallback <<<"
+FALLBACK_PROFILE = PROFILE_PREFIX + "fallback"
 
 # Hyprland transform numbers -> kanshi transform names (sway already uses these names)
 TRANSFORM_NAMES = {
@@ -97,9 +105,19 @@ def output_criteria(make: str, model: str, serial: str, name: str) -> str:
 _PROFILE_RE = re.compile(r"(?ms)^profile (\S+) \{\n.*?^\}\n")
 
 
+def _remove_block(text: str, begin: str, end: str) -> str:
+    if begin not in text or end not in text:
+        return text
+    head, rest = text.split(begin, 1)
+    tail = rest.split(end, 1)[1].lstrip("\n")
+    return head.rstrip("\n") + "\n" + tail if head.strip() else tail
+
+
 def _split_config(text: str) -> Tuple[str, Dict[str, str], str]:
     """Split the config into (text before the managed block, managed profiles
-    by name, text after it). Without a block, everything counts as 'after'."""
+    by name, text after it), leaving out the fallback block. Without a
+    managed block, everything counts as 'after'."""
+    text = _remove_block(text, FALLBACK_BEGIN, FALLBACK_END)
     if BLOCK_BEGIN in text and BLOCK_END in text:
         before, rest = text.split(BLOCK_BEGIN, 1)
         block, after = rest.split(BLOCK_END, 1)
@@ -125,13 +143,23 @@ def write_config(text: str) -> None:
     os.replace(tmp, path)
 
 
-def save_profile(profile: Profile) -> None:
-    """Add or replace the managed profile for this set of displays"""
+def render_fallback(fallback_exec: str) -> str:
+    """The catch-all profile: matches any set of displays, so it goes last,
+    after the user's own profiles too"""
+    return (f"{FALLBACK_BEGIN}\nprofile {FALLBACK_PROFILE} {{\n\t...output *\n"
+            f"\texec {fallback_exec}\n}}\n{FALLBACK_END}\n")
+
+
+def save_profile(profile: Profile, fallback_exec: Optional[str] = None) -> None:
+    """Add or replace the managed profile for this set of displays, and the
+    catch-all profile running fallback_exec (removed if None)"""
     before, profiles, after = _split_config(read_config())
     profiles[profile.name] = profile.render()
     block = BLOCK_BEGIN + "\n" + "\n".join(profiles[k] for k in sorted(profiles)) + BLOCK_END
     after = after.lstrip("\n")
     text = before + block + ("\n\n" + after if after else "\n")
+    if fallback_exec:
+        text = text.rstrip("\n") + "\n\n" + render_fallback(fallback_exec)
     write_config(text)
 
 
@@ -161,10 +189,13 @@ def ensure_running(logging: Logger) -> bool:
     if shutil.which("systemctl"):
         unit = subprocess.run(["systemctl", "--user", "cat", SERVICE], capture_output=True, text=True)
         if unit.returncode == 0:
-            # The user manager may not know the Wayland socket yet (sessions
-            # that don't activate graphical-session.target)
-            if os.environ.get("WAYLAND_DISPLAY"):
-                subprocess.run(["systemctl", "--user", "import-environment", "WAYLAND_DISPLAY"],
+            # The user manager may not know the compositor's sockets yet
+            # (sessions that don't activate graphical-session.target); kanshi
+            # needs the Wayland one, the profiles' exec commands the IPC one
+            names = [n for n in ("WAYLAND_DISPLAY", "SWAYSOCK", "HYPRLAND_INSTANCE_SIGNATURE")
+                     if os.environ.get(n)]
+            if names:
+                subprocess.run(["systemctl", "--user", "import-environment", *names],
                                capture_output=True)
             result = subprocess.run(["systemctl", "--user", "start", SERVICE], capture_output=True, text=True)
             if result.returncode == 0:
@@ -186,10 +217,10 @@ def ensure_running(logging: Logger) -> bool:
     return False
 
 
-def apply_profile(profile: Profile, logging: Logger) -> bool:
+def apply_profile(profile: Profile, logging: Logger, fallback_exec: Optional[str] = None) -> bool:
     """Write the profile to the kanshi config first, then have kanshi apply it"""
     try:
-        save_profile(profile)
+        save_profile(profile, fallback_exec)
     except Exception as e:
         logging.log(LogLevel.Error, f"Failed writing {config_path()}: {e}")
         return False
