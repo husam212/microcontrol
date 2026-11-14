@@ -12,11 +12,17 @@ A small GTK control panel for Wayland window managers, Sway and Hyperland.
 
 ## Installation
 
-On Arch Linux, build and install through the package manager:
+On Arch Linux, install [microcontrol-git](https://aur.archlinux.org/packages/microcontrol-git) from the AUR with an AUR helper such as yay:
 
 ```bash
-git clone https://github.com/husam212/microcontrol
-cd microcontrol/package/arch
+yay -S microcontrol-git
+```
+
+Or build it yourself without an AUR helper:
+
+```bash
+git clone https://aur.archlinux.org/microcontrol-git.git
+cd microcontrol-git
 makepkg -si
 ```
 
