@@ -1,6 +1,9 @@
 /.venv
 **/__pycache__/
 /.pytest_cache
-/log.txt/package/arch/src/
+/log.txt
+/package/arch/src/
 /package/arch/pkg/
 /package/arch/*.pkg.tar.*
+/package/arch/microcontrol-git/
+/package/arch/.SRCINFO
