@@ -1,0 +1,6 @@
+/.venv
+**/__pycache__/
+/.pytest_cache
+/log.txt/package/arch/src/
+/package/arch/pkg/
+/package/arch/*.pkg.tar.*

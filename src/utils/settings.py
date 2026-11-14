@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+
+import json
+import os
+from utils.logger import LogLevel, Logger
+
+
+CONFIG_DIR = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+CONFIG_PATH = os.path.join(CONFIG_DIR, "microcontrol")
+SETTINGS_FILE = os.path.join(CONFIG_PATH, "settings.json")
+
+
+def ensure_config_dir(logging: Logger) -> None:
+    """Ensure the config directory exists
+
+    Args:
+        logging (Logger): Logger instance
+    """
+    try:
+        logging.log(LogLevel.Info, f"Ensuring config directory exists at {CONFIG_PATH}")
+        os.makedirs(CONFIG_PATH, exist_ok=True)
+        logging.log(LogLevel.Info, "Config directory check complete")
+    except Exception as e:
+        logging.log(LogLevel.Error, f"Error creating config directory: {e}")
+
+# Keys written by features that no longer exist (the settings panel, tab
+# visibility/order, the USBGuard tab); dropped from the file on the next save
+OBSOLETE_KEYS = (
+    "visibility", "positions", "tab_order", "usbguard_hidden_devices", "language",
+    "vertical_tabs", "vertical_tabs_icon_only", "window_size", "bluetooth_visible",
+)
+
+
+def load_settings(logging: Logger) -> dict:
+    """Load settings from the settings file with validation"""
+    ensure_config_dir(logging)
+    if not os.path.exists(SETTINGS_FILE):
+        logging.log(LogLevel.Info, "Using default settings (file not found)")
+        return {}
+
+    try:
+        with open(SETTINGS_FILE, 'r') as f:
+            content = f.read().strip()
+            if not content.startswith('{'):
+                content = '{' + content  # Fix malformed JSON
+            settings = json.loads(content)
+            logging.log(LogLevel.Info, f"Loaded settings from {SETTINGS_FILE}")
+
+        if not isinstance(settings, dict):
+            logging.log(LogLevel.Warn, "Invalid settings format - using defaults")
+            return {}
+
+        return settings
+
+    except Exception as e:
+        logging.log(LogLevel.Error, f"Error loading settings: {e}")
+        return {}
+
+def save_settings(settings: dict, logging: Logger) -> bool:
+    """Save settings to the settings file with atomic write and validation"""
+    try:
+        ensure_config_dir(logging)
+
+        if not isinstance(settings, dict):
+            logging.log(LogLevel.Error, "Invalid settings - not a dictionary")
+            return False
+
+        for key in OBSOLETE_KEYS:
+            settings.pop(key, None)
+
+        temp_path = SETTINGS_FILE + '.tmp'
+        with open(temp_path, 'w') as f:
+            json.dump(settings, f, indent=4)
+
+
+        with open(temp_path, 'r') as f:
+            json.load(f)
+
+        os.replace(temp_path, SETTINGS_FILE)
+        logging.log(LogLevel.Info, f"Settings saved successfully to {SETTINGS_FILE}")
+        return True
+
+    except Exception as e:
+        logging.log(LogLevel.Error, f"Error saving settings: {e}")
+        try:
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                os.unlink(temp_path)
+        except:
+            pass
+        return False
