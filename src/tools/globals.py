@@ -22,9 +22,6 @@ def get_current_session():
 def get_wifi_css():
     css_provider = Gtk.CssProvider()
     css_provider.load_from_data(b"""
-        .qr-button{
-            background-color: transparent;
-        }
         .qr_image_holder{
             border-radius: 12px;
         }

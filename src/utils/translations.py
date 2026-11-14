@@ -112,6 +112,9 @@ class English:
         self.bluetooth_forget_failed = "Failed to forget device"
         self.forget = "Forget"
         self.forget_in_progress = "Forgetting..."
+        self.rename = "Rename"
+        self.bluetooth_rename_failed = "Failed to rename device"
+        self.bluetooth_rename_hint = "Leave empty to use the device's own name."
 
         # Display tab translations
         self.display_brightness = "Brightness"
@@ -120,9 +123,9 @@ class English:
 
         # Multiple displays
         self.display_multi_title = 'Multiple Displays'
-        self.display_mode_join = 'Join Displays'
+        self.display_mode_join = 'Join'
         self.display_mode_mirror = 'Mirror'
-        self.display_mode_single = 'Single Display'
+        self.display_mode_single = 'Single'
         self.display_primary = 'Primary Display'
         self.display_active = 'Active Display'
         self.display_builtin = 'Built-in Display'
@@ -268,9 +271,9 @@ class Russian:
 
         # Multiple displays
         self.display_multi_title = 'Несколько дисплеев'
-        self.display_mode_join = 'Объединить дисплеи'
+        self.display_mode_join = 'Объединить'
         self.display_mode_mirror = 'Зеркало'
-        self.display_mode_single = 'Один дисплей'
+        self.display_mode_single = 'Один'
         self.display_primary = 'Основной дисплей'
         self.display_active = 'Активный дисплей'
         self.display_builtin = 'Встроенный дисплей'
@@ -411,9 +414,9 @@ class German:
 
         # Multiple displays
         self.display_multi_title = 'Mehrere Bildschirme'
-        self.display_mode_join = 'Bildschirme verbinden'
+        self.display_mode_join = 'Verbinden'
         self.display_mode_mirror = 'Spiegeln'
-        self.display_mode_single = 'Einzelner Bildschirm'
+        self.display_mode_single = 'Einzeln'
         self.display_primary = 'Hauptbildschirm'
         self.display_active = 'Aktiver Bildschirm'
         self.display_builtin = 'Eingebauter Bildschirm'
@@ -554,9 +557,9 @@ class Italian:
 
         # Multiple displays
         self.display_multi_title = 'Schermi multipli'
-        self.display_mode_join = 'Unisci schermi'
+        self.display_mode_join = 'Unisci'
         self.display_mode_mirror = 'Duplica'
-        self.display_mode_single = 'Schermo singolo'
+        self.display_mode_single = 'Singolo'
         self.display_primary = 'Schermo principale'
         self.display_active = 'Schermo attivo'
         self.display_builtin = 'Schermo integrato'
@@ -695,9 +698,9 @@ class Spanish:
 
         # Multiple displays
         self.display_multi_title = 'Varias pantallas'
-        self.display_mode_join = 'Unir pantallas'
+        self.display_mode_join = 'Unir'
         self.display_mode_mirror = 'Duplicar'
-        self.display_mode_single = 'Pantalla única'
+        self.display_mode_single = 'Única'
         self.display_primary = 'Pantalla principal'
         self.display_active = 'Pantalla activa'
         self.display_builtin = 'Pantalla integrada'
@@ -828,9 +831,9 @@ class Portuguese:
 
         # Multiple displays
         self.display_multi_title = 'Vários monitores'
-        self.display_mode_join = 'Unir monitores'
+        self.display_mode_join = 'Unir'
         self.display_mode_mirror = 'Espelhar'
-        self.display_mode_single = 'Monitor único'
+        self.display_mode_single = 'Único'
         self.display_primary = 'Monitor principal'
         self.display_active = 'Monitor ativo'
         self.display_builtin = 'Monitor integrado'
@@ -961,9 +964,9 @@ class French:
 
         # Multiple displays
         self.display_multi_title = 'Écrans multiples'
-        self.display_mode_join = 'Joindre les écrans'
+        self.display_mode_join = 'Joindre'
         self.display_mode_mirror = 'Miroir'
-        self.display_mode_single = 'Écran unique'
+        self.display_mode_single = 'Unique'
         self.display_primary = 'Écran principal'
         self.display_active = 'Écran actif'
         self.display_builtin = 'Écran intégré'
@@ -1094,9 +1097,9 @@ class Indonesian:
 
         # Multiple displays
         self.display_multi_title = 'Beberapa Layar'
-        self.display_mode_join = 'Gabungkan Layar'
+        self.display_mode_join = 'Gabungkan'
         self.display_mode_mirror = 'Cermin'
-        self.display_mode_single = 'Satu Layar'
+        self.display_mode_single = 'Tunggal'
         self.display_primary = 'Layar Utama'
         self.display_active = 'Layar Aktif'
         self.display_builtin = 'Layar Bawaan'
@@ -1226,9 +1229,9 @@ class Turkish:
 
         # Multiple displays
         self.display_multi_title = 'Çoklu Ekran'
-        self.display_mode_join = 'Ekranları Birleştir'
+        self.display_mode_join = 'Birleştir'
         self.display_mode_mirror = 'Yansıt'
-        self.display_mode_single = 'Tek Ekran'
+        self.display_mode_single = 'Tek'
         self.display_primary = 'Birincil Ekran'
         self.display_active = 'Etkin Ekran'
         self.display_builtin = 'Dahili Ekran'

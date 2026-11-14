@@ -317,6 +317,7 @@ class WiFiTab(Gtk.Box):
         if network.get("saved"):
             forget_button = Gtk.Button()
             forget_button.set_relief(Gtk.ReliefStyle.NONE)
+            forget_button.get_style_context().add_class("list-icon-button")
             forget_button.set_valign(Gtk.Align.CENTER)
             forget_button.set_image(
                 Gtk.Image.new_from_icon_name("user-trash-symbolic", Gtk.IconSize.MENU)
@@ -375,6 +376,8 @@ class WiFiTab(Gtk.Box):
             security_text_disp = "Open"
         else:
             security_text_disp = security_text
+        if network.get("band"):
+            security_text_disp += f" · {network['band']}"
         details_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
         details_label = Gtk.Label()
         details_label.set_markup(f'<small>{GLib.markup_escape_text(security_text_disp)}</small>')
@@ -398,7 +401,8 @@ class WiFiTab(Gtk.Box):
 
         qr_button = Gtk.Button()
         qr_button.set_tooltip_text("Show Qr code")
-        qr_button.get_style_context().add_class("qr-button")
+        qr_button.set_relief(Gtk.ReliefStyle.NONE)
+        qr_button.get_style_context().add_class("list-icon-button")
         qr_button.connect("clicked", self.show_qr_dialog)
         qr_icon = Gtk.Image.new_from_icon_name("qrscanner-symbolic", Gtk.IconSize.MENU)
         qr_button.set_image(qr_icon)

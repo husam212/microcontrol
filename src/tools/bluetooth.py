@@ -260,6 +260,8 @@ class BluetoothManager:
                     {
                         "mac": properties.get("Address", ""),
                         "name": properties.get("Name", ""),
+                        # The name the user gave it (the Name if none)
+                        "alias": properties.get("Alias", ""),
                         "paired": properties.get("Paired", False),
                         "connected": properties.get("Connected", False),
                         "trusted": properties.get("Trusted", False),
@@ -683,6 +685,23 @@ def connect_device_async(device_path: str, callback: Callable[[bool], None], log
 
 def disconnect_device_async(device_path: str, callback: Callable[[bool], None], logging: Logger) -> None:
     get_bluetooth_manager(logging).disconnect_device_async(device_path, callback)
+
+def set_device_alias(device_path: str, alias: str, logging: Logger) -> bool:
+    """Rename a device; an empty alias resets it to the device's own name"""
+    manager = get_bluetooth_manager(logging)
+    try:
+        if manager.bus is None:
+            logging.log(LogLevel.Error, "D-Bus connection not initialized")
+            return False
+        properties = dbus.Interface(
+            manager.bus.get_object(BLUEZ_SERVICE_NAME, device_path), DBUS_PROP_IFACE
+        )
+        properties.Set(BLUEZ_DEVICE_INTERFACE, "Alias", dbus.String(alias))
+        logging.log(LogLevel.Info, f"Renamed device {device_path} to '{alias}'")
+        return True
+    except Exception as e:
+        logging.log(LogLevel.Error, f"Failed to rename device {device_path}: {e}")
+        return False
 
 def forget_device(device_path: str, logging: Logger) -> bool:
     """Forget/unpair a Bluetooth device by removing it from the adapter"""

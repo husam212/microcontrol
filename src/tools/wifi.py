@@ -39,6 +39,19 @@ def set_wifi_power(enabled: bool, logging: Logger) -> None:
         logging.log(LogLevel.Error, f"Failed setting WiFi power: {e}")
 
 
+def wifi_band(freq: str) -> str:
+    """The band of an nmcli frequency like "5240 MHz", e.g. "5 GHz" """
+    try:
+        mhz = int(freq.split()[0])
+    except (IndexError, ValueError):
+        return ""
+    if mhz < 3000:
+        return "2.4 GHz"
+    if mhz < 5925:
+        return "5 GHz"
+    return "6 GHz"
+
+
 def get_wifi_networks(logging: Logger, rescan: bool = False) -> List[Dict[str, str]]:
     """Get list of available WiFi networks
 
@@ -63,7 +76,7 @@ def get_wifi_networks(logging: Logger, rescan: bool = False) -> List[Dict[str, s
             return []
 
         # Use --terse mode and specific fields for more reliable parsing
-        list_cmd = ["nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "device", "wifi", "list"]
+        list_cmd = ["nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY,FREQ", "device", "wifi", "list"]
         result = None
         if rescan:
             # Blocks until the scan finishes (a few seconds)
@@ -103,6 +116,8 @@ def get_wifi_networks(logging: Logger, rescan: bool = False) -> List[Dict[str, s
                 ssid = parts[1]
                 signal = parts[2] if parts[2].strip() else "0"
                 security = parts[3] if parts[3].strip() != "" else "none"
+                # Last field, so it's found even if the SSID has a ':' in it
+                band = wifi_band(parts[-1]) if len(parts) >= 5 else ""
                 # Only add networks with valid SSIDs
                 if ssid and ssid.strip():
                     networks.append(
@@ -112,6 +127,7 @@ def get_wifi_networks(logging: Logger, rescan: bool = False) -> List[Dict[str, s
                             "signal": signal.strip(),
                             "security": security.strip(),
                             "saved": ssid.strip() in saved_names,
+                            "band": band,
                         }
                     )
         return networks

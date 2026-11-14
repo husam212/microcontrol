@@ -111,3 +111,26 @@ expander {
     animation: battery-pulse 2s infinite;
     color: #e74c3c;
 }
+
+/* Small icon buttons in the Wi-Fi and Bluetooth lists (QR code, rename,
+   forget): flat, with a soft highlight on hover so they read as clickable
+   on top of the row's own hover color */
+button.list-icon-button {
+    background-color: transparent;
+    background-image: none;
+    border-radius: 6px;
+    padding: 4px;
+    transition: background-color 150ms ease-out;
+}
+
+button.list-icon-button:hover {
+    background-color: alpha(currentColor, 0.12);
+}
+
+button.list-icon-button:active {
+    background-color: alpha(currentColor, 0.2);
+}
+
+button.list-icon-button:disabled {
+    background-color: transparent;
+}

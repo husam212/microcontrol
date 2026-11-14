@@ -25,6 +25,8 @@ class BluetoothDeviceRow(Gtk.ListBoxRow):
         self.device_path = device['path']
         self.mac_address = device['mac']
         self.device_name = device['name']
+        # Shown as the title, with the device's own name below it if renamed
+        self.alias = device.get('alias') or self.device_name
         self.is_connected = device['connected']
         self.is_paired = device['paired']
         self.device_type = device['icon'] if device['icon'] else 'unknown'
@@ -50,17 +52,19 @@ class BluetoothDeviceRow(Gtk.ListBoxRow):
         name_label = Gtk.Label(xalign=0)
         name_label.set_ellipsize(Pango.EllipsizeMode.END)
         if self.is_connected:
-            name_label.set_markup(f"<b>{GLib.markup_escape_text(self.device_name)}</b>")
+            name_label.set_markup(f"<b>{GLib.markup_escape_text(self.alias)}</b>")
         else:
-            name_label.set_text(self.device_name)
+            name_label.set_text(self.alias)
         left_box.pack_start(name_label, False, False, 0)
 
-        # Details line: device type, plus battery level when reported
+        # Details line: the device's own name if it was renamed, otherwise its
+        # type, plus battery level when reported
         details_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
 
         # Small dimmed text, same as the security type under Wi-Fi networks
         type_label = Gtk.Label()
-        type_label.set_markup(f"<small>{GLib.markup_escape_text(self.get_friendly_device_type())}</small>")
+        details = self.device_name if self.alias != self.device_name else self.get_friendly_device_type()
+        type_label.set_markup(f"<small>{GLib.markup_escape_text(details)}</small>")
         type_label.set_halign(Gtk.Align.START)
         type_label.get_style_context().add_class("dim-label")
         details_box.pack_start(type_label, False, False, 0)
@@ -81,7 +85,7 @@ class BluetoothDeviceRow(Gtk.ListBoxRow):
 
         container.pack_start(left_box, True, True, 0)
 
-        # Right side, like the Wi-Fi list: status, then the forget button
+        # Right side, like the Wi-Fi list: status, then the rename and forget buttons
         status_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
         status_box.set_valign(Gtk.Align.CENTER)
         if busy_text is not None:
@@ -102,6 +106,7 @@ class BluetoothDeviceRow(Gtk.ListBoxRow):
         # Forget: small flat icon button, like the Wi-Fi QR code button
         self.forget_button = Gtk.Button()
         self.forget_button.set_relief(Gtk.ReliefStyle.NONE)
+        self.forget_button.get_style_context().add_class("list-icon-button")
         self.forget_button.set_valign(Gtk.Align.CENTER)
         self.forget_button.set_image(
             Gtk.Image.new_from_icon_name("user-trash-symbolic", Gtk.IconSize.MENU)
@@ -109,6 +114,22 @@ class BluetoothDeviceRow(Gtk.ListBoxRow):
         self.forget_button.set_tooltip_text(getattr(self.txt, "forget", "Forget"))
         self.forget_button.set_sensitive(not self.busy)
         container.pack_end(self.forget_button, False, False, 0)
+
+        # Rename (set the alias): only for paired devices, BlueZ drops the
+        # others, and their alias with them, once they're out of range
+        self.rename_button = None
+        if self.is_paired:
+            self.rename_button = Gtk.Button()
+            self.rename_button.set_relief(Gtk.ReliefStyle.NONE)
+            self.rename_button.get_style_context().add_class("list-icon-button")
+            self.rename_button.set_valign(Gtk.Align.CENTER)
+            self.rename_button.set_image(
+                Gtk.Image.new_from_icon_name("document-edit-symbolic", Gtk.IconSize.MENU)
+            )
+            self.rename_button.set_tooltip_text(getattr(self.txt, "rename", "Rename"))
+            self.rename_button.set_sensitive(not self.busy)
+            container.pack_end(self.rename_button, False, False, 0)
+
         container.pack_end(status_box, False, False, 0)
 
     def get_icon_name_for_device(self):
