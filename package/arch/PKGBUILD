@@ -8,11 +8,9 @@ arch=('any')
 url="https://github.com/husam212/microcontrol"
 license=('GPL-3.0-or-later')
 depends=(
-    'gtk3' 'networkmanager' 'bluez' 'bluez-utils' 'pipewire-pulse' 'brightnessctl'
-    'python' 'python-gobject' 'python-dbus'
-    'python-qrcode' 'python-setproctitle' 'python-pillow' 'python-psutil'
-    'power-profiles-daemon' 'gammastep'
-    'kanshi' 'wl-mirror'
+    'gtk3' 'networkmanager' 'bluez' 'bluez-utils' 'pipewire-pulse' 'brightnessctl' 'python'
+    'python-gobject' 'python-dbus' 'python-qrcode' 'python-setproctitle' 'power-profiles-daemon'
+    'python-psutil' 'python-pillow' 'gammastep' 'kanshi' 'wl-mirror'
 )
 makedepends=('git')
 provides=('microcontrol')

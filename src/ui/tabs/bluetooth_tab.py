@@ -18,6 +18,7 @@ from tools.bluetooth import (
     disconnect_device_async,
 )
 from ui.widgets.bluetooth_device_row import BluetoothDeviceRow
+from ui.dialogs.inline_dialog import InlineDialog, ask, show_message
 
 
 class BluetoothTab(Gtk.Box):
@@ -398,23 +399,16 @@ class BluetoothTab(Gtk.Box):
         """Forget (unpair) a device after confirmation"""
         if device_path in self._busy_devices:
             return
-        dialog = Gtk.MessageDialog(
-            transient_for=self.get_toplevel(),
-            modal=True,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.YES_NO,
-            text=f"{getattr(self.txt, 'forget', 'Forget')} {device_name}?",
-        )
-        dialog.format_secondary_text("You'll need to pair it again to use it.")
-        response = dialog.run()
-        dialog.destroy()
-        if response != Gtk.ResponseType.YES:
-            return
-        self._run_device_action(
-            device_path,
-            getattr(self.txt, "forget_in_progress", "Forgetting..."),
-            "forget",
-            getattr(self.txt, "bluetooth_forget_failed", "Failed to forget device"),
+        forget = getattr(self.txt, "forget", "Forget")
+        ask(
+            self, f"{forget} {device_name}?", "You'll need to pair it again to use it.", forget,
+            lambda: self._run_device_action(
+                device_path,
+                getattr(self.txt, "forget_in_progress", "Forgetting..."),
+                "forget",
+                getattr(self.txt, "bluetooth_forget_failed", "Failed to forget device"),
+            ),
+            cancel_label=getattr(self.txt, "cancel", "Cancel"), destructive=True,
         )
 
     def on_rename_clicked(self, button, device_path, alias, name):
@@ -422,23 +416,11 @@ class BluetoothTab(Gtk.Box):
         if device_path in self._busy_devices:
             return
         rename = getattr(self.txt, "rename", "Rename")
-        dialog = Gtk.Dialog(
-            title=f"{rename} {alias}",
-            transient_for=self.get_toplevel(),
-            modal=True,
-        )
-        dialog.add_buttons(
-            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-            rename, Gtk.ResponseType.OK,
-        )
+        dialog = InlineDialog(self, f"{rename} {alias}")
+        dialog.add_button(getattr(self.txt, "cancel", "Cancel"), Gtk.ResponseType.CANCEL)
+        dialog.add_button(rename, Gtk.ResponseType.OK, "suggested-action")
         dialog.set_default_response(Gtk.ResponseType.OK)
-
         box = dialog.get_content_area()
-        box.set_spacing(10)
-        box.set_margin_start(10)
-        box.set_margin_end(10)
-        box.set_margin_top(10)
-        box.set_margin_bottom(10)
 
         entry = Gtk.Entry()
         entry.set_text(alias)
@@ -451,26 +433,19 @@ class BluetoothTab(Gtk.Box):
         hint.get_style_context().add_class("dim-label")
         box.add(hint)
 
-        dialog.show_all()
-        response = dialog.run()
-        new_alias = entry.get_text().strip()
-        dialog.destroy()
-        if response != Gtk.ResponseType.OK or new_alias == alias:
-            return
+        def on_response(response):
+            new_alias = entry.get_text().strip()
+            if response != Gtk.ResponseType.OK or new_alias == alias:
+                return
+            from tools.bluetooth import set_device_alias
+            if not set_device_alias(device_path, new_alias, self.logging):
+                show_message(
+                    self, getattr(self.txt, "bluetooth_rename_failed", "Failed to rename device"),
+                    getattr(self.txt, "bluetooth_try_again", "Please try again"),
+                )
+            self.update_device_list(force=True)
 
-        from tools.bluetooth import set_device_alias
-        if not set_device_alias(device_path, new_alias, self.logging):
-            error = Gtk.MessageDialog(
-                transient_for=self.get_toplevel(),
-                modal=True,
-                message_type=Gtk.MessageType.ERROR,
-                buttons=Gtk.ButtonsType.OK,
-                text=getattr(self.txt, "bluetooth_rename_failed", "Failed to rename device"),
-            )
-            error.format_secondary_text(getattr(self.txt, "bluetooth_try_again", "Please try again"))
-            error.run()
-            error.destroy()
-        self.update_device_list(force=True)
+        dialog.present(on_response)
 
     def _run_device_action(self, device_path, busy_text, action, error_text):
         """Run connect/disconnect/forget for a device, showing progress on its row"""
@@ -484,18 +459,9 @@ class BluetoothTab(Gtk.Box):
                 self._busy_devices.pop(device_path, None)
                 self.update_device_list(force=True)
                 if not success:
-                    dialog = Gtk.MessageDialog(
-                        transient_for=self.get_toplevel(),
-                        modal=True,
-                        message_type=Gtk.MessageType.ERROR,
-                        buttons=Gtk.ButtonsType.OK,
-                        text=error_text,
+                    show_message(
+                        self, error_text, getattr(self.txt, "bluetooth_try_again", "Please try again")
                     )
-                    dialog.format_secondary_text(
-                        getattr(self.txt, "bluetooth_try_again", "Please try again")
-                    )
-                    dialog.run()
-                    dialog.destroy()
                 return False
 
             GLib.idle_add(update_ui)

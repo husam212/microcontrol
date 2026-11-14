@@ -21,6 +21,7 @@ from ui.tabs.volume_tab import VolumeTab
 from ui.tabs.wifi_tab import WiFiTab
 from utils.logger import LogLevel, Logger
 from ui.css.animations import load_animations_css
+from ui.dialogs.inline_dialog import InlineDialogHost
 from utils.translations import Translation
 
 TAB_CLASSES = {
@@ -140,7 +141,9 @@ class MicroControl(Gtk.Window):
         self.animations_css_provider = load_animations_css()
 
         self.notebook = Gtk.Notebook()
-        self.add(self.notebook)
+        # Dialogs are shown inside the window, over the notebook
+        self.dialog_host = InlineDialogHost(self.notebook)
+        self.add(self.dialog_host)
 
         if self.vertical_tabs:
             self.notebook.set_tab_pos(Gtk.PositionType.LEFT)
@@ -384,9 +387,15 @@ class MicroControl(Gtk.Window):
         return False  # Let other handlers process the event
 
     def on_key_press(self, widget, event):
-        """Prevent tab selection globally"""
+        """Prevent tab selection globally, and close the app on Escape"""
         if event.keyval in (65289, 65056):  # Tab and Shift+Tab
             return True  # Stop propagation
+        if event.keyval == Gdk.KEY_Escape:
+            # An open dialog (overlaid on the notebook) handles Escape itself
+            if len(self.dialog_host.get_children()) > 1:
+                return False
+            self.close()
+            return True
         return False  # Let other handlers process the event
 
     def signal_handler(self, sig, frame):

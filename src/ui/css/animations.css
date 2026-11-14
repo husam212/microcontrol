@@ -134,3 +134,25 @@ button.list-icon-button:active {
 button.list-icon-button:disabled {
     background-color: transparent;
 }
+
+/* Dialogs inside the main window (ui/dialogs/inline_dialog.py) */
+.inline-dialog-backdrop {
+    background-color: alpha(black, 0.4);
+}
+
+.inline-dialog {
+    background-color: @theme_bg_color;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 14px alpha(black, 0.35), 0 0 0 1px alpha(black, 0.12);
+}
+
+.inline-dialog-title {
+    font-weight: bold;
+    font-size: 1.15em;
+}
+
+.inline-dialog button {
+    border-radius: 8px;
+    padding: 6px 14px;
+}

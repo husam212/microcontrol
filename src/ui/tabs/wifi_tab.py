@@ -11,6 +11,7 @@ from utils.translations import Translation
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk  # type: ignore
 from tools.globals import get_wifi_css
+from ui.dialogs.inline_dialog import InlineDialog, ask, show_message
 
 from tools.wifi import (
     get_wifi_status,
@@ -326,6 +327,7 @@ class WiFiTab(Gtk.Box):
             forget_button.connect("clicked", self.on_forget_clicked, row)
             box.pack_end(forget_button, False, False, 0)
 
+
         row.add(box)
         row.network = network
         self.networks_box.add(row)
@@ -388,6 +390,39 @@ class WiFiTab(Gtk.Box):
         info_box.pack_start(details_box, False, True, 0)
 
         return info_box
+
+    def _show_row_busy(self, row, status_text):
+        """Show a connect/disconnect/forget in progress on a network row: its
+        name and details stay, with a spinner and status on the right (like
+        the Bluetooth list). The next list refresh replaces it."""
+        network = getattr(row, "network", None)
+        if network is None:
+            return
+        row.busy = True
+        old_box = row.get_child()
+        if old_box is not None:
+            row.remove(old_box)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        box.set_margin_start(10)
+        box.set_margin_end(10)
+        box.set_margin_top(6)
+        box.set_margin_bottom(6)
+        box.pack_start(self._create_signal_icon(network), False, False, 0)
+        box.pack_start(self._create_network_info_box(network), True, True, 0)
+
+        status_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        status_box.set_valign(Gtk.Align.CENTER)
+        spinner = Gtk.Spinner()
+        spinner.start()
+        status_box.pack_start(spinner, False, False, 0)
+        status_label = Gtk.Label(label=status_text)
+        status_label.get_style_context().add_class("dim-label")
+        status_box.pack_start(status_label, False, False, 0)
+        box.pack_end(status_box, False, False, 0)
+
+        row.add(box)
+        row.show_all()
 
     def _add_connected_qr_widgets(self, container_box):
         connected_icon = Gtk.Image.new_from_icon_name("emblem-ok-symbolic", Gtk.IconSize.MENU)
@@ -573,29 +608,7 @@ class WiFiTab(Gtk.Box):
 
         self.logging.log(LogLevel.Info, f"Connecting to WiFi network: {ssid}")
 
-        # Show connecting indicator in list
-        for child in self.networks_box.get_children():
-            if child == row:
-                # Update the selected row to show connecting status
-                old_box = child.get_child()
-                child.remove(old_box)
-                new_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-                new_box.set_margin_start(10)
-                new_box.set_margin_end(10)
-                new_box.set_margin_top(6)
-                new_box.set_margin_bottom(6)
-                # Add spinner
-                spinner = Gtk.Spinner()
-                spinner.start()
-                new_box.pack_start(spinner, False, False, 0)
-                # Add label
-                connecting_label = Gtk.Label(label=f"Connecting to {ssid}...")
-                connecting_label.set_halign(Gtk.Align.START)
-                new_box.pack_start(connecting_label, True, True, 0)
-
-                child.add(new_box)
-                child.show_all()
-                break
+        self._show_row_busy(row, getattr(self.txt, "connecting", "Connecting..."))
 
         # Try connecting in background thread
         def connect_thread():
@@ -628,73 +641,51 @@ class WiFiTab(Gtk.Box):
         networks = get_wifi_networks(self.logging)
         network = next((n for n in networks if n["ssid"] == ssid), None)
         if network and network["security"].lower() != "none":
-            dialog = Gtk.Dialog(
-                title=f"Connect to {ssid}",
-                parent=self.get_toplevel(),
-                flags=0,
-                buttons=(
-                    Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-                    Gtk.STOCK_OK, Gtk.ResponseType.OK
-                )
-            )
-
+            dialog = InlineDialog(self, f"Connect to {ssid}")
+            dialog.add_button(getattr(self.txt, "cancel", "Cancel"), Gtk.ResponseType.CANCEL)
+            dialog.add_button(getattr(self.txt, "connect", "Connect"), Gtk.ResponseType.OK, "suggested-action")
             box = dialog.get_content_area()
-            box.set_spacing(10)
-            box.set_margin_start(10)
-            box.set_margin_end(10)
-            box.set_margin_top(10)
-            box.set_margin_bottom(10)
-
-            password_label = Gtk.Label(label="Password:")
-            box.add(password_label)
 
             password_entry = Gtk.Entry()
             password_entry.set_visibility(False)
             password_entry.set_invisible_char("●")
+            password_entry.set_placeholder_text(getattr(self.txt, "wifi_password", "Password"))
+            password_entry.set_activates_default(True)
+            dialog.set_default_response(Gtk.ResponseType.OK)
             box.add(password_entry)
 
             remember_check = Gtk.CheckButton(label="Remember this network")
             remember_check.set_active(True)
             box.add(remember_check)
 
-            dialog.show_all()
-            response = dialog.run()
-
-            if response == Gtk.ResponseType.OK:
+            def on_response(response):
+                if response != Gtk.ResponseType.OK:
+                    # Cancelled, refresh to clear the row's status
+                    self.update_network_list()
+                    return
                 password = password_entry.get_text()
                 remember = remember_check.get_active()
-                dialog.destroy()
+
+                def show_failed():
+                    show_message(self, "Failed to connect", "Please check your password and try again.")
+                    self.update_network_list()
+                    return False
+
                 # Connect with password in background thread
                 def connect_with_password_thread():
                     try:
                         if connect_network(ssid, self.logging, password, remember):
                             GLib.idle_add(self.update_network_list)
                         else:
-                            # Show error dialog
-                            error_dialog = Gtk.MessageDialog(
-                                transient_for=self.get_toplevel(),
-                                flags=0,
-                                message_type=Gtk.MessageType.ERROR,
-                                buttons=Gtk.ButtonsType.OK,
-                                text="Failed to connect"
-                            )
-                            error_dialog.format_secondary_text(
-                                "Please check your password and try again."
-                            )
-                            error_dialog.run()
-                            error_dialog.destroy()
-                            # Refresh UI to clear status
-                            GLib.idle_add(self.update_network_list)
+                            GLib.idle_add(show_failed)
                     except Exception as e:
                         self.logging.log(LogLevel.Error, f"Failed connecting to network with password: {e}")
                         GLib.idle_add(self.update_network_list)
                 thread = threading.Thread(target=connect_with_password_thread)
                 thread.daemon = True
                 thread.start()
-            else:
-                dialog.destroy()
-                # User cancelled, refresh UI to clear status
-                self.update_network_list()
+
+            dialog.present(on_response)
         else:
             # No security or network not found, just refresh UI
             self.update_network_list()
@@ -717,29 +708,7 @@ class WiFiTab(Gtk.Box):
 
         self.logging.log(LogLevel.Info, f"Disconnecting from WiFi network: {ssid}")
 
-        # Show disconnecting indicator
-        for child in self.networks_box.get_children():
-            if child == row:
-                # Update the selected row to show disconnecting status
-                old_box = child.get_child()
-                child.remove(old_box)
-                new_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-                new_box.set_margin_start(10)
-                new_box.set_margin_end(10)
-                new_box.set_margin_top(6)
-                new_box.set_margin_bottom(6)
-                # Add spinner
-                spinner = Gtk.Spinner()
-                spinner.start()
-                new_box.pack_start(spinner, False, False, 0)
-                # Add label
-                disconnecting_label = Gtk.Label(label=f"Disconnecting from {ssid}...")
-                disconnecting_label.set_halign(Gtk.Align.START)
-                new_box.pack_start(disconnecting_label, True, True, 0)
-
-                child.add(new_box)
-                child.show_all()
-                break
+        self._show_row_busy(row, getattr(self.txt, "disconnecting", "Disconnecting..."))
 
         # Run disconnect in separate thread
         thread = threading.Thread(target=self._disconnect_thread, args=(ssid,))
@@ -754,45 +723,9 @@ class WiFiTab(Gtk.Box):
         ssid = network["ssid"]
         self.logging.log(LogLevel.Info, f"Forgetting WiFi network: {ssid}")
 
-        dialog = Gtk.MessageDialog(
-            transient_for=self.get_toplevel(),
-            flags=0,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.YES_NO,
-            text=f"Forget network {ssid}?"
-        )
-        dialog.format_secondary_text(
-            "This will remove all saved settings for this network."
-        )
-
-        response = dialog.run()
-        dialog.destroy()
-
-        if response == Gtk.ResponseType.YES:
+        def forget():
             row.busy = True
-            # Show forgetting indicator
-            for child in self.networks_box.get_children():
-                if child == row:
-                    # Update the selected row to show forgetting status
-                    old_box = child.get_child()
-                    child.remove(old_box)
-                    new_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-                    new_box.set_margin_start(10)
-                    new_box.set_margin_end(10)
-                    new_box.set_margin_top(6)
-                    new_box.set_margin_bottom(6)
-                    # Add spinner
-                    spinner = Gtk.Spinner()
-                    spinner.start()
-                    new_box.pack_start(spinner, False, False, 0)
-                    # Add label
-                    forgetting_label = Gtk.Label(label=f"Forgetting {ssid}...")
-                    forgetting_label.set_halign(Gtk.Align.START)
-                    new_box.pack_start(forgetting_label, True, True, 0)
-
-                    child.add(new_box)
-                    child.show_all()
-                    break
+            self._show_row_busy(row, getattr(self.txt, "forget_in_progress", "Forgetting..."))
 
             # Run forget in background thread
             def forget_thread():
@@ -808,6 +741,12 @@ class WiFiTab(Gtk.Box):
             thread = threading.Thread(target=forget_thread)
             thread.daemon = True
             thread.start()
+
+        ask(
+            self, f"Forget network {ssid}?", "This will remove all saved settings for this network.",
+            getattr(self.txt, "wifi_forget", "Forget"), forget,
+            cancel_label=getattr(self.txt, "cancel", "Cancel"), destructive=True,
+        )
 
     def _disconnect_thread(self, ssid):
         """Thread function to disconnect from a WiFi network"""
@@ -853,27 +792,10 @@ class WiFiTab(Gtk.Box):
                     # use hardcoded fallback title text to avoid missing translation attribute diagnostics
                     dialog_title = getattr(self.txt, "wifi_share_title", "Share WiFi")
 
-                    qr_dialog = Gtk.Dialog(
-                        title=dialog_title,
-                        parent=self.get_toplevel(),
-                        flags=Gtk.DialogFlags.MODAL,
-                    )
-                    qr_dialog.set_default_size(0,0)
-                    qr_dialog.set_position(Gtk.WindowPosition.CENTER_ON_PARENT)
-
-                    # header
-                    header_bar = Gtk.HeaderBar()
-                    header_bar.set_show_close_button(True)
-                    header_bar.set_title(dialog_title)
-                    qr_dialog.set_titlebar(header_bar)
-
-                    # content area
+                    qr_dialog = InlineDialog(self, dialog_title)
+                    qr_dialog.add_button(getattr(self.txt, "close", "Close"), Gtk.ResponseType.CLOSE)
+                    qr_dialog.set_default_response(Gtk.ResponseType.CLOSE)
                     content_area = qr_dialog.get_content_area()
-                    content_area.set_spacing(10)
-                    content_area.set_margin_top(10)
-                    content_area.set_margin_bottom(10)
-                    content_area.set_margin_start(10)
-                    content_area.set_margin_end(10)
 
                     # for qr code image
                     top_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -951,9 +873,7 @@ class WiFiTab(Gtk.Box):
 
                     content_area.pack_start(bottom_box, False, True, 0)
 
-                    qr_dialog.show_all()
-                    qr_dialog.run()
-                    qr_dialog.destroy()
+                    qr_dialog.present()
 
                 except Exception as e:
                     self.logging.log(LogLevel.Error, f"failed to open qr code dialog: {e}")
