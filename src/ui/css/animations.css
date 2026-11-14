@@ -156,3 +156,16 @@ button.list-icon-button:disabled {
     border-radius: 8px;
     padding: 6px 14px;
 }
+
+/* Battery level bar (battery_tab.py). The theme's "every filled block is
+   blue" rule otherwise wins over its orange .low rule, and it has no color
+   for .critical */
+levelbar block.critical {
+    border-color: @error_color;
+    background-color: @error_color;
+}
+
+levelbar block.low {
+    border-color: @warning_color;
+    background-color: @warning_color;
+}

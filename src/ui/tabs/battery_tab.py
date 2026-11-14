@@ -77,11 +77,11 @@ class BatteryTab(Gtk.Box):
         self.pack_start(self.scroll_window, True, True, 0)
 
         self.power_mode_dropdown.connect("changed", self.set_power_mode)
-        
+
 
         self.refresh_battery_info()
         GLib.timeout_add_seconds(10, self.refresh_battery_info)
-        
+
     def set_power_mode(self, widget):
         """Handle power mode change using powerprofilesctl."""
         selected_mode = widget.get_active_text()
@@ -252,9 +252,13 @@ class BatteryTab(Gtk.Box):
         level_bar.set_value(charge_percentage)
         level_bar.set_size_request(-1, 15)
         level_bar.set_hexpand(True)
+        # The bar takes the color of the first offset at or above the charge:
+        # red up to 10%, orange up to 20%, blue up to 80%, then green (the
+        # colors are set in animations.css)
+        level_bar.add_offset_value("critical", 10.0)
         level_bar.add_offset_value("low", 20.0)
-        level_bar.add_offset_value("high", 50.0)
-        level_bar.add_offset_value("full", 90.0)
+        level_bar.add_offset_value("high", 80.0)
+        level_bar.add_offset_value("full", 100.0)
         box.pack_start(level_bar, False, False, 0)
 
         return box
