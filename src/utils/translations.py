@@ -90,7 +90,7 @@ class English:
         self.msg_tab_battery = "Battery"
         self.msg_tab_bluetooth = "Bluetooth"
         self.msg_tab_display = "Display"
-        self.msg_tab_volume = "Volume"
+        self.msg_tab_volume = "Audio"
         self.msg_tab_wifi = "Wi-Fi"
 
         # Battery tab translations
@@ -241,7 +241,7 @@ class Russian:
         self.msg_tab_battery = "Батарея"
         self.msg_tab_bluetooth = "Bluetooth"
         self.msg_tab_display = "Экран"
-        self.msg_tab_volume = "Громкость"
+        self.msg_tab_volume = "Звук"
         self.msg_tab_wifi = "Wi-Fi"
 
         # Battery tab translations
@@ -389,7 +389,7 @@ class German:
         self.msg_tab_battery = "Akku"
         self.msg_tab_bluetooth = "Bluetooth"
         self.msg_tab_display = "Bildschirm"
-        self.msg_tab_volume = "Lautstärke"
+        self.msg_tab_volume = "Audio"
         self.msg_tab_wifi = "WLAN"
 
         # Battery tab translations
@@ -532,7 +532,7 @@ class Italian:
         self.msg_tab_battery = "Batteria"
         self.msg_tab_bluetooth = "Bluetooth"
         self.msg_tab_display = "Schermo"
-        self.msg_tab_volume = "Volume"
+        self.msg_tab_volume = "Audio"
         self.msg_tab_wifi = "Wi-Fi"
 
         # Battery tab translations
@@ -673,7 +673,7 @@ class Spanish:
         self.msg_tab_battery = "Batería"
         self.msg_tab_bluetooth = "Bluetooth"
         self.msg_tab_display = "Pantalla"
-        self.msg_tab_volume = "Volumen"
+        self.msg_tab_volume = "Audio"
         self.msg_tab_wifi = "Wi-Fi"
 
         # Battery tab translations
@@ -806,7 +806,7 @@ class Portuguese:
         self.msg_tab_battery = "Bateria"
         self.msg_tab_bluetooth = "Bluetooth"
         self.msg_tab_display = "Tela"
-        self.msg_tab_volume = "Volume"
+        self.msg_tab_volume = "Áudio"
         self.msg_tab_wifi = "Wi-Fi"
 
         # Battery tab translations
@@ -939,7 +939,7 @@ class French:
         self.msg_tab_battery = "Batterie"
         self.msg_tab_bluetooth = "Bluetooth"
         self.msg_tab_display = "Affichage"
-        self.msg_tab_volume = "Volume"
+        self.msg_tab_volume = "Audio"
         self.msg_tab_wifi = "Wi-Fi"
 
         # Battery tab translations
@@ -1072,7 +1072,7 @@ class Indonesian:
         self.msg_tab_battery = "Baterai"
         self.msg_tab_bluetooth = "Bluetooth"
         self.msg_tab_display = "Tampilan"
-        self.msg_tab_volume = "Volume"
+        self.msg_tab_volume = "Audio"
         self.msg_tab_wifi = "Wi-Fi"
 
         # Battery tab translations

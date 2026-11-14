@@ -175,7 +175,6 @@ class ArgParse:
 
         # General options
         self.arg_print(f"  {GREEN}-h, --help{RESET}                      Prints this help message")
-        self.arg_print(f"  {GREEN}-f, --force{RESET}                     Makes the app force to have all dependencies installed")
         self.arg_print(f"  {GREEN}-s, --size{RESET} {YELLOW}<intxint>{RESET}            Sets a custom window size")
         self.arg_print(f"  {GREEN}-L, --lang{RESET} {YELLOW}<code>{RESET}               Sets the language of the app (en, de, es, fr, id, it, pt, ru, tr)")
         self.arg_print("                                  Defaults to the system language")
@@ -183,10 +182,10 @@ class ArgParse:
         self.arg_print(f"  {GREEN}-t, --vertical-tabs{RESET}             Shows the tabs vertically on the left side\n")
 
         # Tab selection options
+        self.arg_print(f"  {BLUE}-a, --audio{RESET}                     Starts with the audio tab open")
         self.arg_print(f"  {BLUE}-B, --battery{RESET}                   Starts with the battery tab open")
         self.arg_print(f"  {BLUE}-b, --bluetooth{RESET}                 Starts with the bluetooth tab open")
         self.arg_print(f"  {BLUE}-d, --display{RESET}                   Starts with the display tab open")
-        self.arg_print(f"  {BLUE}-v, --volume{RESET}                    Starts with the volume tab open")
         self.arg_print(f"  {BLUE}-w, --wifi{RESET}                      Starts with the wifi tab open\n")
 
         # Logging options

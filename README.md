@@ -4,7 +4,7 @@ A small GTK control panel for Wayland window managers, Sway and Hyperland.
 
 ## Features
 
-- **Volume**: choose the output and input device, set speaker and microphone volume, control each app's volume and output device, and switch device profiles.
+- **Audio**: choose the output and input device, set speaker and microphone volume, control each app's volume and output device, and switch device profiles.
 - **Wi-Fi**: turn Wi-Fi on or off, scan for networks, connect or disconnect a network, forget saved networks, and share the current network as a QR code.
 - **Bluetooth**: turn Bluetooth on or off, scan for devices, connect or disconnect a device, forget devices, and see their battery level.
 - **Battery**: see the charge level and time remaining, and switch between power modes.

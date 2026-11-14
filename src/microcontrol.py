@@ -7,6 +7,7 @@ import gi  # type: ignore
 import sys
 from setproctitle import setproctitle
 import signal
+import threading
 from utils.arg_parser import ArgParse
 from utils.logger import LogLevel, Logger
 from utils.settings import ensure_config_dir
@@ -18,7 +19,6 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gtk, GLib  # type: ignore
 
 from ui.main_window import MicroControl
-from utils.dependencies import check_all_dependencies
 from tools.bluetooth import restore_last_sink
 from tools.hyprland import set_floating_rule
 
@@ -176,25 +176,6 @@ def initialize_and_start():
     setup_temp_directory(logger)
 
     txt = process_language(arg_parser, logger)
-
-    # Asynchronous dependency check to avoid blocking startup
-    import threading
-
-    def check_dependencies_async():
-        try:
-            if (
-                not arg_parser.find_arg(("-f", "--force"))
-                and not check_all_dependencies(logger)
-            ):
-                logger.log(
-                    LogLevel.Error,
-                    "Missing required dependencies. Please install them and try again or use -f to force start.",
-                )
-                # Optionally, show a GTK dialog warning here
-        except Exception as e:
-            logger.log(LogLevel.Error, f"Dependency check error: {e}")
-
-    threading.Thread(target=check_dependencies_async, daemon=True).start()
 
     # Make sure kanshi runs on Wayland compositors: it applies the display
     # layouts set in the Display tab (and re-applies them on hotplug)

@@ -25,7 +25,7 @@ from ui.dialogs.inline_dialog import InlineDialogHost
 from utils.translations import Translation
 
 TAB_CLASSES = {
-    "Volume": VolumeTab,
+    "Audio": VolumeTab,
     "Wi-Fi": WiFiTab,
     "Bluetooth": BluetoothTab,
     "Battery": BatteryTab,
@@ -33,7 +33,7 @@ TAB_CLASSES = {
 }
 
 TAB_ICONS = {
-    "Volume": "audio-volume-high-symbolic",
+    "Audio": "audio-volume-high-symbolic",
     "Wi-Fi": "network-wireless-symbolic",
     "Bluetooth": "bluetooth-symbolic",
     "Battery": "battery-good-symbolic",
@@ -172,7 +172,7 @@ class MicroControl(Gtk.Window):
 
         # Map tab names to translated labels
         self.tab_name_mapping = {
-            "Volume": self.txt.msg_tab_volume,
+            "Audio": self.txt.msg_tab_volume,
             "Wi-Fi": self.txt.msg_tab_wifi,
             "Bluetooth": self.txt.msg_tab_bluetooth,
             "Battery": self.txt.msg_tab_battery,
