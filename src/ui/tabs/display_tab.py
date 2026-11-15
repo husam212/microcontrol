@@ -337,7 +337,14 @@ class DisplayTab(Gtk.Box):
             mirror_button = self.md_mode_buttons[MODE_MIRROR]
             mirror_ok = self.display_backend.supports_mirror()
             mirror_button.set_sensitive(mirror_ok or mode == MODE_MIRROR)
-            mirror_button.set_tooltip_text(None if mirror_ok else self.txt.display_mirror_unavailable)
+            if mirror_ok:
+                tooltip = None
+            elif self.display_backend.mirror_unavailable_reason() == "wl-mirror":
+                tooltip = self.txt.display_mirror_unavailable
+            else:
+                tooltip = getattr(self.txt, "display_mirror_unsupported",
+                                  "Mirroring isn't supported on this compositor yet.")
+            mirror_button.set_tooltip_text(tooltip)
             self._md_update_labels(mode)
         finally:
             self._md_syncing = False

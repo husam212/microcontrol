@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mirror one sway output onto others; run by kanshi profiles in Mirror mode.
+"""Mirror one sway output onto others; run when a layout in Mirror mode is applied.
 
     sway_mirror.py SOURCE TARGET [TARGET...]
 
@@ -9,7 +9,7 @@ one the user was looking at is shown there. Otherwise they'd stay on the
 targets, hidden behind wl-mirror, while the source shows the empty workspace
 sway created when it was turned on.
 
-Standalone (no project imports): kanshi runs it from its own environment.
+Standalone (no project imports): run as a detached process.
 """
 
 import json
@@ -34,7 +34,7 @@ def get(kind: str) -> list:
 
 
 def wait_for_outputs(names, timeout=3.0) -> None:
-    """kanshi runs exec right after applying; give sway a moment to have them all on"""
+    """Run right after applying; give sway a moment to have them all on"""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         active = {o["name"] for o in get("get_outputs") if o.get("active")}
@@ -85,7 +85,7 @@ def move_workspaces(source: str, targets: list) -> None:
                 f"move workspace to output {quote(source)}")
 
     # Show the workspace with the MicroControl window (where the user just
-    # chose Mirror). Without it (e.g. kanshi re-applying on hotplug), show what
+    # chose Mirror). Without it (e.g. re-applied on hotplug), show what
     # the user was looking at: the focused workspace, unless it's the empty one
     # sway created when the source was turned on; then the one that was
     # visible on a target.

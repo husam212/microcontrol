@@ -175,6 +175,9 @@ class ArgParse:
 
         # General options
         self.arg_print(f"  {GREEN}-h, --help{RESET}                      Prints this help message")
+        self.arg_print(f"  {GREEN}--daemon{RESET}                        Runs the background daemon instead of the window (applies")
+        self.arg_print("                                  display layouts on hotplug). Only the logging options apply")
+        self.arg_print("                                  to it, the others are ignored. Usually run by microcontrol.service")
         self.arg_print(f"  {GREEN}-s, --size{RESET} {YELLOW}<intxint>{RESET}            Sets a custom window size")
         self.arg_print(f"  {GREEN}-L, --lang{RESET} {YELLOW}<code>{RESET}               Sets the language of the app (en, de, es, fr, id, it, pt, ru, tr)")
         self.arg_print("                                  Defaults to the system language")

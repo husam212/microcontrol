@@ -130,6 +130,7 @@ class English:
         self.display_active = 'Active Display'
         self.display_builtin = 'Built-in Display'
         self.display_mirror_unavailable = 'Mirroring on Sway requires wl-mirror to be installed.'
+        self.display_mirror_unsupported = "Mirroring isn't supported on this compositor yet."
         self.display_keep_changes = 'Keep these display settings?'
         self.display_revert = 'Revert'
         self.display_keep = 'Keep Changes'

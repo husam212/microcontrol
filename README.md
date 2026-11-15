@@ -48,18 +48,16 @@ Some features depend on system services running: NetworkManager for Wi-Fi, BlueZ
 sudo systemctl enable --now NetworkManager bluetooth power-profiles-daemon
 ```
 
-MicroControl manages displays through [kanshi](https://gitlab.freedesktop.org/emersion/kanshi). Having anything else modify the kanshi config, such as another display tool or your own scripts, is not recommended, and display settings might not work properly if it does.
-
-To apply your display settings automatically when you log in, enable the kanshi service:
+MicroControl depends on a background daemon for D-Bus events, it starts automatically on MicroControl first run. To have it running from login, so your display settings are applied right away, enable its SystemD service:
 
 ```bash
-systemctl --user enable microcontrol-kanshi.service
+systemctl --user enable microcontrol.service
 ```
 
 This works in sessions that start `graphical-session.target` (e.g. Hyprland with uwsm). On Sway, which usually doesn't, add this line to your Sway config instead:
 
 ```
-exec systemctl --user start microcontrol-kanshi.service
+exec systemctl --user start microcontrol.service
 ```
 
 ## License

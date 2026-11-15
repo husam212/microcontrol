@@ -23,13 +23,6 @@ def ensure_config_dir(logging: Logger) -> None:
     except Exception as e:
         logging.log(LogLevel.Error, f"Error creating config directory: {e}")
 
-# Keys written by features that no longer exist (the settings panel, tab
-# visibility/order, the USBGuard tab); dropped from the file on the next save
-OBSOLETE_KEYS = (
-    "visibility", "positions", "tab_order", "usbguard_hidden_devices", "language",
-    "vertical_tabs", "vertical_tabs_icon_only", "window_size", "bluetooth_visible",
-)
-
 
 def load_settings(logging: Logger) -> dict:
     """Load settings from the settings file with validation"""
@@ -64,9 +57,6 @@ def save_settings(settings: dict, logging: Logger) -> bool:
         if not isinstance(settings, dict):
             logging.log(LogLevel.Error, "Invalid settings - not a dictionary")
             return False
-
-        for key in OBSOLETE_KEYS:
-            settings.pop(key, None)
 
         temp_path = SETTINGS_FILE + '.tmp'
         with open(temp_path, 'w') as f:

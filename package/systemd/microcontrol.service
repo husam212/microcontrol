@@ -1,13 +1,14 @@
 [Unit]
-Description=kanshi display profiles for microcontrol
+Description=MicroControl daemon
 PartOf=graphical-session.target
 After=graphical-session.target
 StartLimitIntervalSec=30
 StartLimitBurst=3
 
 [Service]
-Type=simple
-ExecStart=/usr/bin/kanshi
+Type=dbus
+BusName=dev.husam.MicroControl.Daemon
+ExecStart=/usr/bin/microcontrol --daemon
 Restart=on-failure
 RestartSec=2
 

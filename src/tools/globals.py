@@ -9,13 +9,7 @@ from utils.logger import LogLevel
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk # type: ignore
 
-def get_current_session():  
-    if "hyprland" in os.environ.get("XDG_CURRENT_DESKTOP", "").lower():
-        return "Hyprland"
-    elif "sway" in os.environ.get("XDG_CURRENT_DESKTOP", "").lower():
-        return "sway"
-    else:
-        return False
+from tools.session import get_current_session  # noqa: F401 (re-exported)
     
     
 # css for wifi_tab
