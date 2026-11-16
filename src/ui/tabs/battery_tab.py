@@ -382,10 +382,6 @@ class BatteryTab(Gtk.Box):
 
         # Create main content box - store as instance variable to update later
         self.content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
-        self.content_box.set_margin_top(10)
-        self.content_box.set_margin_bottom(10)
-        self.content_box.set_margin_start(10)
-        self.content_box.set_margin_end(10)
         self.content_box.set_hexpand(True)
         self.content_box.set_vexpand(True)
 

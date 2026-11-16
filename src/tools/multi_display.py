@@ -24,7 +24,7 @@ import re
 import shlex
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from utils.logger import LogLevel, Logger
@@ -56,6 +56,8 @@ class OutputInfo:
     criteria: str = ""
     # Pixel size of the preferred mode, to lay out displays that are off
     preferred_size: Optional[Tuple[int, int]] = None
+    # The display's modes, (width, height, refresh mHz), without duplicates
+    modes: List[Tuple[int, int, int]] = field(default_factory=list)
 
     @property
     def is_builtin(self) -> bool:
@@ -136,6 +138,8 @@ class DisplayBackend:
                 mirror_of=mirrors.get(h.name) if h.enabled else None,
                 criteria=h.criteria,
                 preferred_size=(preferred.width, preferred.height) if preferred else None,
+                modes=sorted({(m.width, m.height, m.refresh) for m in h.modes if m.width and m.height},
+                             reverse=True),
             ))
         return outputs
 
@@ -271,6 +275,22 @@ class DisplayBackend:
         else:
             plans = [self._plan(o, o.enabled, (o.x, o.y), scale if o.name == name else None)
                      for o in outputs]
+        return self._commit(outputs, plans, self._current_mirror(outputs))
+
+    def set_mode(self, name: str, mode: Tuple[int, int, int]) -> bool:
+        """Set a display's resolution and refresh rate"""
+        outputs = self.list_outputs()
+        target = next((o for o in outputs if o.name == name and o.enabled), None)
+        if target is None:
+            self.logging.log(LogLevel.Error, f"Display '{name}' is not active")
+            return False
+        self.logging.log(LogLevel.Info, f"Setting mode of {name} to {mode[0]}x{mode[1]}@{mode[2] / 1000:g}Hz")
+        target.mode = tuple(mode)
+        if detect_mode(outputs) == MODE_JOIN and sum(o.enabled for o in outputs) > 1:
+            # Re-lay out: the display's width changes with its resolution
+            plans = self._join_plans(outputs, self.get_primary(outputs))
+        else:
+            plans = [self._plan(o, o.enabled, (o.x, o.y)) for o in outputs]
         return self._commit(outputs, plans, self._current_mirror(outputs))
 
     def restore(self, snapshot: List[OutputInfo]) -> bool:

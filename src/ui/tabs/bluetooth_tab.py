@@ -77,10 +77,6 @@ class BluetoothTab(Gtk.Box):
 
         # Create main content box (the header row stays put; only the list scrolls)
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        content_box.set_margin_top(10)
-        content_box.set_margin_bottom(10)
-        content_box.set_margin_start(10)
-        content_box.set_margin_end(10)
 
         # Device list section
         devices_label = Gtk.Label()

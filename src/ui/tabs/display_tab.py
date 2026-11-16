@@ -22,8 +22,9 @@ LAYOUT_MULTI = "multi"
 
 
 class _ScaleControl:
-    """Scale card for one display: a 100%-300% slider in 25% steps, applied
-    once it stops moving"""
+    """Cards for one display: Scale (a 100%-300% slider in 25% steps, applied
+    once it stops moving), and Resolution and Refresh Rate in a card of their
+    own (mode_card)"""
 
     MIN, MAX, STEP = 100, 300, 25  # percent
 
@@ -42,15 +43,107 @@ class _ScaleControl:
         self.slider.connect("value-changed", self._on_value_changed)
         self.card.connect("destroy", lambda _w: self.cancel())
 
-    def sync(self, scale: float) -> None:
-        """Show the display's current scale, unless the user is choosing one"""
-        if self.apply_id is not None:
-            return
+        # Resolution and refresh rate, side by side under the slider
+        self.modes = []
+        self.mode = None
+        self.resolution_combo = Gtk.ComboBoxText()
+        self.refresh_combo = Gtk.ComboBoxText()
+        self.mode_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10, homogeneous=True)
+        for title, combo in ((getattr(tab.txt, "display_resolution", "Resolution"), self.resolution_combo),
+                             (getattr(tab.txt, "display_refresh_rate", "Refresh Rate"), self.refresh_combo)):
+            column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            # Bold, like the other cards' titles
+            label = Gtk.Label(xalign=0)
+            label.set_markup(f"<b>{GLib.markup_escape_text(title)}</b>")
+            column.pack_start(label, False, True, 0)
+            column.pack_start(combo, False, True, 0)
+            column.show_all()
+            self.mode_row.pack_start(column, True, True, 0)
+        self.mode_card = Gtk.Frame()
+        self.mode_card.set_shadow_type(Gtk.ShadowType.IN)
+        self.mode_row.set_margin_start(12)
+        self.mode_row.set_margin_end(12)
+        self.mode_row.set_margin_top(12)
+        self.mode_row.set_margin_bottom(12)
+        self.mode_card.add(self.mode_row)
+        self.mode_row.show()
+        self.mode_card.set_no_show_all(True)  # shown by sync() when there are modes
+        self.resolution_combo.connect("changed", self._on_resolution_changed)
+        self.refresh_combo.connect("changed", self._on_refresh_changed)
+
+    def sync(self, output) -> None:
+        """Show the display's current scale and mode, unless the user is
+        choosing a scale"""
         self.syncing = True
         try:
-            self.slider.set_value(round(scale * 100))
+            if self.apply_id is None:
+                self.slider.set_value(round(output.scale * 100))
+            self._sync_modes(output.modes, output.mode)
         finally:
             self.syncing = False
+
+    def _sync_modes(self, modes, mode) -> None:
+        self.mode_card.set_visible(bool(modes) and mode is not None)
+        if not modes or mode is None:
+            return
+        if modes != self.modes:
+            self.modes = modes
+            self.resolution_combo.remove_all()
+            for w, h in dict.fromkeys((w, h) for w, h, _r in modes):  # in order, without duplicates
+                self.resolution_combo.append(f"{w}x{h}", f"{w} × {h}")
+            self.mode = None
+        # Also when the selection differs, e.g. a change that was reverted
+        if mode != self.mode or self._selected_mode() != mode:
+            self.mode = mode
+            self.resolution_combo.set_active_id(f"{mode[0]}x{mode[1]}")
+            self._fill_refresh_rates(mode[:2], mode[2])
+
+    def _fill_refresh_rates(self, size, refresh) -> None:
+        """List the refresh rates of a resolution in whole Hz, selecting the
+        closest to refresh. Rates rounding to the same number are listed
+        once: as the current rate if it's one of them, otherwise as the one
+        closest to the whole number."""
+        groups = {}
+        for w, h, r in self.modes:
+            if (w, h) == tuple(size):
+                groups.setdefault(round(r / 1000), []).append(r)
+        self.refresh_combo.remove_all()
+        rates = []
+        for hz in sorted(groups, reverse=True):
+            group = groups[hz]
+            rate = refresh if refresh in group else min(group, key=lambda r: abs(r - hz * 1000))
+            rates.append(rate)
+            self.refresh_combo.append(str(rate), f"{hz} Hz")
+        if rates:
+            self.refresh_combo.set_active_id(str(min(rates, key=lambda r: abs(r - refresh))))
+
+    def _selected_mode(self):
+        size, rate = self.resolution_combo.get_active_id(), self.refresh_combo.get_active_id()
+        if not size or not rate:
+            return None
+        w, h = size.split("x")
+        return (int(w), int(h), int(rate))
+
+    def _on_resolution_changed(self, combo):
+        if self.syncing or not combo.get_active_id() or self.mode is None:
+            return
+        w, h = combo.get_active_id().split("x")
+        self.syncing = True
+        try:
+            # Keep the refresh rate, or the closest one at this resolution
+            self._fill_refresh_rates((int(w), int(h)), self.mode[2])
+        finally:
+            self.syncing = False
+        self._request()
+
+    def _on_refresh_changed(self, _combo):
+        if not self.syncing:
+            self._request()
+
+    def _request(self):
+        mode = self._selected_mode()
+        if mode is not None and mode != self.mode:
+            self.tab.request_mode(self.name, mode)
 
     def cancel(self) -> None:
         if self.apply_id is not None:
@@ -115,10 +208,6 @@ class DisplayTab(Gtk.Box):
 
         # Main content box, filled by _build_layout
         self.content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
-        self.content_box.set_margin_top(10)
-        self.content_box.set_margin_bottom(10)
-        self.content_box.set_margin_start(10)
-        self.content_box.set_margin_end(10)
 
         # Cards that move between the layouts (kept, not rebuilt)
         self.brightness_scale = Gtk.Scale.new_with_range(
@@ -233,6 +322,7 @@ class DisplayTab(Gtk.Box):
                 control = _ScaleControl(self, details)
                 self.scale_controls[details] = control
                 self.content_box.pack_start(control.card, False, True, 0)
+                self.content_box.pack_start(control.mode_card, False, True, 0)
         else:
             self.content_box.pack_start(self.bluelight_card, False, True, 0)
             self.content_box.pack_start(self.multi_display_box, False, True, 0)
@@ -252,6 +342,7 @@ class DisplayTab(Gtk.Box):
                     control = _ScaleControl(self, name)
                     self.scale_controls[name] = control
                     page.pack_start(control.card, False, True, 0)
+                    page.pack_start(control.mode_card, False, True, 0)
                 else:
                     off = Gtk.Label(label=getattr(self.txt, "display_off", "This display is off."))
                     off.get_style_context().add_class("dim-label")
@@ -367,7 +458,7 @@ class DisplayTab(Gtk.Box):
         for o in outputs:
             control = self.scale_controls.get(o.name)
             if control is not None and o.enabled:
-                control.sync(o.scale)
+                control.sync(o)
 
         if layout[0] != LAYOUT_MULTI:
             self._md_current = None
@@ -444,17 +535,35 @@ class DisplayTab(Gtk.Box):
         previous_primary = backend.get_primary(snapshot)
 
         def revert():
-            self.logging.log(LogLevel.Info, "Reverting display configuration")
             backend.restore(snapshot)
             backend.save_primary(previous_primary)
 
-        if not backend.apply(mode, primary):
-            self.logging.log(LogLevel.Error, f"Failed to apply display mode '{mode}'")
+        self._apply_and_confirm(lambda: backend.apply(mode, primary), revert)
+
+    def request_mode(self, name, mode):
+        """Set a display's resolution and refresh rate, then ask to keep it"""
+        backend = self.display_backend
+        if backend is None or self._md_dialog is not None:
+            return
+        snapshot = backend.list_outputs()
+        if next((o.mode for o in snapshot if o.name == name), None) == tuple(mode):
+            return
+        self._apply_and_confirm(lambda: backend.set_mode(name, mode), lambda: backend.restore(snapshot))
+
+    def _apply_and_confirm(self, apply, revert):
+        """Apply a display change, then ask to keep it, reverting it if the
+        user doesn't (or doesn't answer: the dialog counts down)"""
+        def do_revert():
+            self.logging.log(LogLevel.Info, "Reverting display configuration")
             revert()
+
+        if not apply():
+            self.logging.log(LogLevel.Error, "Failed to apply the display configuration")
+            do_revert()
             self.refresh_multi_display()
             return
 
-        self.multi_display_box.set_sensitive(False)
+        self.content_box.set_sensitive(False)
         parent = self.get_toplevel()
         dialog = DisplayConfirmDialog(parent if isinstance(parent, Gtk.Window) else None, self.txt)
         self._md_dialog = dialog
@@ -462,9 +571,9 @@ class DisplayTab(Gtk.Box):
         def on_response(dlg, response):
             dlg.destroy()
             if response != Gtk.ResponseType.OK:
-                revert()
+                do_revert()
             self._md_dialog = None
-            self.multi_display_box.set_sensitive(True)
+            self.content_box.set_sensitive(True)
             self.refresh_multi_display()
 
         dialog.connect("response", on_response)

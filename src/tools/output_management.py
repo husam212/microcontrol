@@ -13,6 +13,7 @@ with pywayland's scanner:
     python -m pywayland.scanner -i protocols/wlr-output-management-unstable-v1.xml -o protocols
 """
 
+import atexit
 import threading
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
@@ -186,6 +187,24 @@ class OutputManager:
     def _on_finished(self, _manager) -> None:
         self.finished = True
 
+    def close(self) -> None:
+        """Release the Wayland objects, then disconnect. Needed before the
+        process exits: otherwise the garbage collector may free the heads
+        and modes after the connection, and libwayland crashes on them."""
+        with self.lock:
+            if self.display is None:
+                return
+            for head in self.heads:
+                for mode in head.modes:
+                    mode.proxy.destroy()
+                head.proxy.destroy()
+            self.heads = []
+            self.manager.destroy()
+            self.registry.destroy()
+            self.display.disconnect()
+            self.display = None
+            self.finished = True
+
     # --- use ------------------------------------------------------------------
     def refresh(self) -> List[Head]:
         """Process pending changes and return the connected displays"""
@@ -272,7 +291,10 @@ def get_manager() -> OutputManager:
     global _manager
     with _manager_lock:
         if _manager is None or _manager.finished:
+            if _manager is not None:
+                _manager.close()
             _manager = OutputManager()
+            atexit.register(_manager.close)
         return _manager
 
 
