@@ -69,9 +69,9 @@ def check_hardware_support(self, visibility, logging):
             "check": wifi_supported,
             "log_message": "No Wi-Fi adapter found, skipping Wi-Fi tab",
         },
-        "Battery": {
+        "Power": {
             "check": battery_supported,
-            "log_message": "No battery found, skipping Battery tab",
+            "log_message": "No battery found, skipping Power tab",
         },
         "Bluetooth": {
             "check": bluetooth_manager.bluetooth_supported,

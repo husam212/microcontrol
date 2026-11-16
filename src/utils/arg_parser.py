@@ -186,9 +186,9 @@ class ArgParse:
 
         # Tab selection options
         self.arg_print(f"  {BLUE}-a, --audio{RESET}                     Starts with the audio tab open")
-        self.arg_print(f"  {BLUE}-B, --battery{RESET}                   Starts with the battery tab open")
         self.arg_print(f"  {BLUE}-b, --bluetooth{RESET}                 Starts with the bluetooth tab open")
         self.arg_print(f"  {BLUE}-d, --display{RESET}                   Starts with the display tab open")
+        self.arg_print(f"  {BLUE}-p, --power{RESET}                     Starts with the power tab open")
         self.arg_print(f"  {BLUE}-w, --wifi{RESET}                      Starts with the wifi tab open\n")
 
         # Logging options

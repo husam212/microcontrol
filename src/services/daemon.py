@@ -9,6 +9,8 @@ Window options (-w, --size, ...) are ignored; --log works as in the app.
 Features:
 * applying the saved display layout when displays are plugged in or out
   (services/display_service.py)
+* switching to the power profile chosen for AC power or battery when the
+  power source changes (services/power_service.py)
 """
 
 import signal
@@ -74,6 +76,13 @@ def main(argv: List[str]) -> int:
         services.append(DisplayService(logging, backend, lost_session))
     else:
         logging.log(LogLevel.Info, "Not managing displays (the compositor doesn't support wlr-output-management)")
+
+    from tools import power
+    if power.available() and power.on_battery() is not None:
+        from services.power_service import PowerService
+        services.append(PowerService(logging))
+    else:
+        logging.log(LogLevel.Info, "Not managing power profiles (no power-profiles-daemon or UPower)")
 
     def quit_loop() -> bool:
         logging.log(LogLevel.Info, "MicroControl daemon stopping")

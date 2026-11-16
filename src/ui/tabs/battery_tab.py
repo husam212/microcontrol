@@ -10,6 +10,7 @@ import threading
 from datetime import datetime
 from gi.repository import Gtk, GLib,Gdk  # type: ignore
 from utils.logger import LogLevel, Logger
+from tools import power
 
 
 class BatteryTab(Gtk.Box):
@@ -22,117 +23,76 @@ class BatteryTab(Gtk.Box):
 
         self.__load_gui(parent)
 
-        self.power_mode_dropdown = Gtk.ComboBoxText()
-        self.power_modes = {
-            self.txt.battery_power_saving: "power-saver",
-            self.txt.battery_balanced: "balanced",
-            self.txt.battery_performance: "performance",
+        # Power profile names
+        self.profile_names = {
+            "power-saver": self.txt.battery_power_saving,
+            "balanced": self.txt.battery_balanced,
+            "performance": self.txt.battery_performance,
         }
-
-        for mode in self.power_modes.keys():
-            self.power_mode_dropdown.append_text(mode)
-
-        # Get saved mode from settings
-        saved_mode = ''
-        try:
-            # Get current power plan using powerprofilesctl
-            result = subprocess.run(
-                "powerprofilesctl get", shell=True, capture_output=True, text=True
-            )
-            if result.returncode == 0:
-                current_plan = result.stdout.strip()
-
-                plan_mapping = {
-                    "power-saver": "Power Saving",
-                    "balanced": "Balanced",
-                    "performance": "Performance",
-                }
-                if current_plan in plan_mapping:
-                    saved_mode = current_plan
-        except Exception as e:
-            self.logging.log(LogLevel.Error, f"Failed to get current power plan: {e}")
-
-        matching_label = next(
-            (label for label, value in self.power_modes.items() if value == saved_mode),
-            self.txt.battery_balanced,
-        )
-        if matching_label:
-            self.power_mode_dropdown.set_active(
-                list(self.power_modes.keys()).index(matching_label)
-            )
-        else:
-            self.logging.log(
-                LogLevel.Warn,
-                f"Unknown power mode '{saved_mode}', defaulting to Balanced",
-            )
-            self.power_mode_dropdown.set_active(
-                list(self.power_modes.keys()).index("Balanced")
-            )
-
-        # Add dropdown to the UI
-        self.dropdown_box.pack_start(self.power_mode_dropdown, True, True, 0)
-        self.power_mode_box.pack_start(self.dropdown_box, False, False, 0)
 
         self.scroll_window.add(self.content_box)
         self.pack_start(self.scroll_window, True, True, 0)
 
-        self.power_mode_dropdown.connect("changed", self.set_power_mode)
-
-
         self.refresh_battery_info()
         GLib.timeout_add_seconds(10, self.refresh_battery_info)
 
-    def set_power_mode(self, widget):
-        """Handle power mode change using powerprofilesctl."""
-        selected_mode = widget.get_active_text()
-        if selected_mode in self.power_modes:
-            mode_value = self.power_modes[selected_mode]
+    def _profile_card(self, source, title, is_current, selected, profiles):
+        """Card choosing the power profile for a power source (AC or battery)"""
+        frame = Gtk.Frame()
+        frame.set_shadow_type(Gtk.ShadowType.IN)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box.set_margin_start(12)
+        box.set_margin_end(12)
+        box.set_margin_top(12)
+        box.set_margin_bottom(12)
 
-            # Disable dropdown while processing
-            self.power_mode_dropdown.set_sensitive(False)
+        title_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        title_label = Gtk.Label(xalign=0)
+        title_label.set_markup(f"<b>{GLib.markup_escape_text(title)}</b>")
+        title_row.pack_start(title_label, False, False, 0)
+        if is_current:
+            now_label = Gtk.Label(label=getattr(self.txt, "power_now", "Now"))
+            now_label.get_style_context().add_class("dim-label")
+            title_row.pack_start(now_label, False, False, 0)
+        box.pack_start(title_row, False, True, 0)
 
-            # Create and start thread for async operation
-            def run_power_change():
-                try:
-                    command = f"powerprofilesctl set {mode_value}"
-                    result = subprocess.run(
-                        command, shell=True, capture_output=True, text=True
-                    )
+        # Linked toggle buttons, like the Display tab's Layout card
+        buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        buttons.get_style_context().add_class("linked")
+        group = None
+        for profile in profiles:
+            button = Gtk.RadioButton.new_with_label_from_widget(group, self.profile_names[profile])
+            button.set_mode(False)  # render as a toggle button
+            group = group or button
+            button.set_active(profile == selected)
+            button.connect("toggled", self.on_profile_chosen, source, profile, is_current)
+            buttons.pack_start(button, True, True, 0)
+        if selected not in profiles and group is not None:
+            # Unknown active profile: show none selected
+            group.set_inconsistent(True)
+        box.pack_start(buttons, False, False, 0)
 
-                    # Use GLib.idle_add to update UI from the main thread
-                    def update_ui():
-                        self.power_mode_dropdown.set_sensitive(True)
+        frame.add(box)
+        return frame
 
-                        if result.returncode != 0:
-                            error_message = "powerprofilesctl is missing. Please check our GitHub page to see all dependencies and install them."
-                            self.logging.log(LogLevel.Error, error_message)
-                            if self.parent:
-                                self.parent.show_error_dialog(error_message)
-                        else:
-                            self.logging.log(
-                                LogLevel.Info,
-                                f"Power mode changed to: {selected_mode} ({mode_value})",
-                            )
-                            # Refresh the UI to update button styles
-                            self.refresh_battery_info()
-                        return False
+    def on_profile_chosen(self, button, source, profile, is_current):
+        """Save the profile for the power source; apply it now if the system
+        runs on that source (the daemon applies it when the source changes)"""
+        if not button.get_active():
+            return
+        power.save_profile(source, profile, self.logging)
+        if not is_current or profile == power.get_profile():
+            self.refresh_battery_info()
+            return
 
-                    GLib.idle_add(update_ui)
+        for sibling in button.get_parent().get_children():
+            sibling.set_sensitive(False)
 
-                except Exception as e:
-                    def handle_error(e=e):  # Capture the exception in the closure
-                        self.power_mode_dropdown.set_sensitive(True)
-                        error_message = f"Failed to set power mode: {e}"
-                        self.logging.log(LogLevel.Error, error_message)
-                        if self.parent:
-                            self.parent.show_error_dialog(error_message)
-                        return False
+        def apply():
+            power.set_profile(profile, self.logging)
+            GLib.idle_add(lambda: self.refresh_battery_info() and False)
 
-                    GLib.idle_add(handle_error)
-
-            # Start the thread
-            thread = threading.Thread(target=run_power_change, daemon=True)
-            thread.start()
+        threading.Thread(target=apply, daemon=True).start()
 
     def get_battery_devices(self):
         """Get list of battery devices from UPower."""
@@ -305,63 +265,29 @@ class BatteryTab(Gtk.Box):
             for battery_info in batteries:
                 self.content_box.pack_start(self.create_battery_charge_box(battery_info), False, False, 0)
 
-        # Power mode selector below the charge
-        mode_selector = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        mode_selector.set_homogeneous(True)  # Make all buttons equal width
-        mode_selector.set_margin_top(10)
-
-        mode_icons = {
-            self.txt.battery_power_saving: "power-profile-power-saver-symbolic",
-            self.txt.battery_balanced: "power-profile-balanced-symbolic",
-            self.txt.battery_performance: "power-profile-performance-symbolic"
-        }
-
-        # Get current active mode
-        active_mode = self.power_mode_dropdown.get_active_text()
-
-        for mode, profile in self.power_modes.items():
-            mode_button = Gtk.Button()
-
-            button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
-            button_box.set_margin_top(8)
-            button_box.set_margin_bottom(8)
-
-            icon = Gtk.Image.new_from_icon_name(mode_icons.get(mode, "dialog-question-symbolic"), Gtk.IconSize.BUTTON)
-            button_box.pack_start(icon, False, False, 0)
-
-            label = Gtk.Label(mode)
-            button_box.pack_start(label, True, False, 0)
-
-            mode_button.add(button_box)
-            mode_button.connect("clicked", self.on_power_mode_button_clicked, mode)
-
-            if mode == active_mode:
-                mode_button.get_style_context().add_class("suggested-action")
-
-            mode_selector.pack_start(mode_button, True, True, 0)
-
-        self.content_box.pack_start(mode_selector, False, False, 0)
+        # Power profile for each power source, below the charge. Sources
+        # without a chosen profile show the active one (nothing switches)
+        if power.available():
+            source = power.current_source()
+            active = power.get_profile()
+            profiles = power.available_profiles() or list(power.PROFILES)
+            for card_source, title in (
+                (power.SOURCE_AC, getattr(self.txt, "power_plugged_in", "Plugged In")),
+                (power.SOURCE_BATTERY, getattr(self.txt, "power_on_battery", "On Battery")),
+            ):
+                selected = power.saved_profile(card_source, self.logging) or active
+                self.content_box.pack_start(
+                    self._profile_card(card_source, title, card_source == source, selected, profiles),
+                    False, True, 0,
+                )
 
         # Show all widgets
-        self.content_box.show_all()        # Show all widgets
         self.content_box.show_all()
 
         # Update refresh time
         self.last_refresh_time = datetime.now()
 
         return True
-
-    def on_power_mode_button_clicked(self, button, mode):
-        """Handle click on power mode button."""
-        # Disable all mode buttons while processing
-        for child in button.get_parent().get_children():
-            child.set_sensitive(False)
-
-        # Find index of the selected mode
-        if mode in self.power_modes:
-            index = list(self.power_modes.keys()).index(mode)
-            # Set the dropdown to this index (will trigger the "changed" signal)
-            self.power_mode_dropdown.set_active(index)
 
     def __load_gui(self, parent):
         self.set_margin_top(15)
@@ -384,15 +310,3 @@ class BatteryTab(Gtk.Box):
         self.content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
         self.content_box.set_hexpand(True)
         self.content_box.set_vexpand(True)
-
-        # Power mode section (hidden as we'll create this dynamically)
-        self.power_mode_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        self.power_mode_label = Gtk.Label(label="Select Power Mode:")
-        self.power_mode_label.set_halign(Gtk.Align.START)
-        self.power_mode_label.set_markup("<b>Select Power Mode:</b>")
-        self.power_mode_box.pack_start(self.power_mode_label, False, False, 0)
-
-        # Mode selection dropdown (hidden but functional for logic)
-        self.dropdown_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
-        self.dropdown_box.set_margin_top(5)
-        # Note: The dropdown is not visible but set active in code to trigger mode change

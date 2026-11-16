@@ -3,7 +3,7 @@ from pathlib import Path
 from utils.arg_parser import ArgParse
 
 # Tabs in the order they appear
-TAB_ORDER = ["Audio", "Wi-Fi", "Bluetooth", "Battery", "Display"]
+TAB_ORDER = ["Audio", "Wi-Fi", "Bluetooth", "Power", "Display"]
 
 
 def tab_name_from_arguments(arg_parser: ArgParse):
@@ -15,8 +15,8 @@ def tab_name_from_arguments(arg_parser: ArgParse):
         active_tab = "Wi-Fi"
     elif arg_parser.find_arg(("-b", "--bluetooth")):
         active_tab = "Bluetooth"
-    elif arg_parser.find_arg(("-B", "--battery")):
-        active_tab = "Battery"
+    elif arg_parser.find_arg(("-p", "--power")):
+        active_tab = "Power"
     elif arg_parser.find_arg(("-d", "--display")):
         active_tab = "Display"
 

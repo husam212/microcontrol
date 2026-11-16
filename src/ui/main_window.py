@@ -28,7 +28,7 @@ TAB_CLASSES = {
     "Audio": VolumeTab,
     "Wi-Fi": WiFiTab,
     "Bluetooth": BluetoothTab,
-    "Battery": BatteryTab,
+    "Power": BatteryTab,
     "Display": DisplayTab,
 }
 
@@ -36,7 +36,7 @@ TAB_ICONS = {
     "Audio": "audio-volume-high-symbolic",
     "Wi-Fi": "network-wireless-symbolic",
     "Bluetooth": "bluetooth-symbolic",
-    "Battery": "battery-good-symbolic",
+    "Power": "battery-good-symbolic",
     "Display": "video-display-symbolic",
 }
 
@@ -175,7 +175,7 @@ class MicroControl(Gtk.Window):
             "Audio": self.txt.msg_tab_volume,
             "Wi-Fi": self.txt.msg_tab_wifi,
             "Bluetooth": self.txt.msg_tab_bluetooth,
-            "Battery": self.txt.msg_tab_battery,
+            "Power": self.txt.msg_tab_battery,
             "Display": self.txt.msg_tab_display,
         }
 
