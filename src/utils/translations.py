@@ -122,7 +122,7 @@ class English:
         self.display_scale = 'Scale'
 
         # Multiple displays
-        self.display_multi_title = 'Multiple Displays'
+        self.display_multi_title = 'Layout'
         self.display_mode_join = 'Join'
         self.display_mode_mirror = 'Mirror'
         self.display_mode_single = 'Single'
@@ -131,6 +131,7 @@ class English:
         self.display_builtin = 'Built-in Display'
         self.display_mirror_unavailable = 'Mirroring on Sway requires wl-mirror to be installed.'
         self.display_mirror_unsupported = "Mirroring isn't supported on this compositor yet."
+        self.display_off = "This display is off."
         self.display_keep_changes = 'Keep these display settings?'
         self.display_revert = 'Revert'
         self.display_keep = 'Keep Changes'
@@ -271,7 +272,7 @@ class Russian:
         self.display_scale = 'Масштаб'
 
         # Multiple displays
-        self.display_multi_title = 'Несколько дисплеев'
+        self.display_multi_title = 'Расположение'
         self.display_mode_join = 'Объединить'
         self.display_mode_mirror = 'Зеркало'
         self.display_mode_single = 'Один'
@@ -414,7 +415,7 @@ class German:
         self.display_scale = 'Skalierung'
 
         # Multiple displays
-        self.display_multi_title = 'Mehrere Bildschirme'
+        self.display_multi_title = 'Anordnung'
         self.display_mode_join = 'Verbinden'
         self.display_mode_mirror = 'Spiegeln'
         self.display_mode_single = 'Einzeln'
@@ -557,7 +558,7 @@ class Italian:
         self.display_scale = 'Scala'
 
         # Multiple displays
-        self.display_multi_title = 'Schermi multipli'
+        self.display_multi_title = 'Disposizione'
         self.display_mode_join = 'Unisci'
         self.display_mode_mirror = 'Duplica'
         self.display_mode_single = 'Singolo'
@@ -698,7 +699,7 @@ class Spanish:
         self.display_scale = 'Escala'
 
         # Multiple displays
-        self.display_multi_title = 'Varias pantallas'
+        self.display_multi_title = 'Disposición'
         self.display_mode_join = 'Unir'
         self.display_mode_mirror = 'Duplicar'
         self.display_mode_single = 'Única'
@@ -831,7 +832,7 @@ class Portuguese:
         self.display_scale = 'Escala'
 
         # Multiple displays
-        self.display_multi_title = 'Vários monitores'
+        self.display_multi_title = 'Disposição'
         self.display_mode_join = 'Unir'
         self.display_mode_mirror = 'Espelhar'
         self.display_mode_single = 'Único'
@@ -964,7 +965,7 @@ class French:
         self.display_scale = 'Échelle'
 
         # Multiple displays
-        self.display_multi_title = 'Écrans multiples'
+        self.display_multi_title = 'Disposition'
         self.display_mode_join = 'Joindre'
         self.display_mode_mirror = 'Miroir'
         self.display_mode_single = 'Unique'
@@ -1097,7 +1098,7 @@ class Indonesian:
         self.display_scale = 'Skala'
 
         # Multiple displays
-        self.display_multi_title = 'Beberapa Layar'
+        self.display_multi_title = 'Tata Letak'
         self.display_mode_join = 'Gabungkan'
         self.display_mode_mirror = 'Cermin'
         self.display_mode_single = 'Tunggal'
@@ -1229,7 +1230,7 @@ class Turkish:
         self.display_scale = 'Ölçek'
 
         # Multiple displays
-        self.display_multi_title = 'Çoklu Ekran'
+        self.display_multi_title = 'Düzen'
         self.display_mode_join = 'Birleştir'
         self.display_mode_mirror = 'Yansıt'
         self.display_mode_single = 'Tek'

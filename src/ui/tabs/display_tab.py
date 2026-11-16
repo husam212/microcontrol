@@ -17,8 +17,78 @@ from tools.multi_display import (
 )
 from ui.dialogs.display_confirm_dialog import DisplayConfirmDialog
 
+LAYOUT_SINGLE = "single"
+LAYOUT_MULTI = "multi"
+
+
+class _ScaleControl:
+    """Scale card for one display: a 100%-300% slider in 25% steps, applied
+    once it stops moving"""
+
+    MIN, MAX, STEP = 100, 300, 25  # percent
+
+    def __init__(self, tab: "DisplayTab", name: str):
+        self.tab = tab
+        self.name = name
+        self.syncing = False
+        self.apply_id = None
+
+        self.slider = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, self.MIN, self.MAX, self.STEP)
+        self.card = tab._slider_card(tab.txt.display_scale, self.slider)
+        self.slider.set_increments(self.STEP, self.STEP)
+        self.slider.set_digits(0)
+        self.slider.connect("format-value", lambda _s, v: f"{int(round(v))}%")
+        self.slider.connect("change-value", self._on_change_value)
+        self.slider.connect("value-changed", self._on_value_changed)
+        self.card.connect("destroy", lambda _w: self.cancel())
+
+    def sync(self, scale: float) -> None:
+        """Show the display's current scale, unless the user is choosing one"""
+        if self.apply_id is not None:
+            return
+        self.syncing = True
+        try:
+            self.slider.set_value(round(scale * 100))
+        finally:
+            self.syncing = False
+
+    def cancel(self) -> None:
+        if self.apply_id is not None:
+            GLib.source_remove(self.apply_id)
+            self.apply_id = None
+
+    def _on_change_value(self, scale, _scroll, value):
+        """Snap to 25% steps"""
+        snapped = min(self.MAX, max(self.MIN, round(value / self.STEP) * self.STEP))
+        if snapped != scale.get_value():
+            scale.set_value(snapped)
+        return True
+
+    def _on_value_changed(self, _scale):
+        if self.syncing:
+            return
+        self.cancel()
+        self.apply_id = GLib.timeout_add(500, self._apply)
+
+    def _apply(self):
+        self.apply_id = None
+        backend = self.tab.display_backend
+        if backend is not None:
+            backend.set_scale(self.name, self.slider.get_value() / 100)
+        # Read back what the compositor settled on (Hyprland may round it)
+        GLib.timeout_add(300, lambda: self.tab.refresh_multi_display() and False)
+        return False
+
+
 class DisplayTab(Gtk.Box):
-    """Display settings tab"""
+    """Display settings tab.
+
+    With one display connected: Brightness, Blue Light and Scale cards.
+    With more: the shared Blue Light and the Layout card (Join / Mirror /
+    Single) at the top, then a sub-tab per display with its own settings
+    (the primary display toggle, Scale, and Brightness for the built-in
+    panel, the one with a backlight).
+    """
 
     def __init__(self, logging: Logger, txt: Translation):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -43,24 +113,21 @@ class DisplayTab(Gtk.Box):
         scroll_window.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll_window.set_vexpand(True)
 
-        # Create main content box
-        content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
-        content_box.set_margin_top(10)
-        content_box.set_margin_bottom(10)
-        content_box.set_margin_start(10)
-        content_box.set_margin_end(10)
-        
-        # Brightness
+        # Main content box, filled by _build_layout
+        self.content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
+        self.content_box.set_margin_top(10)
+        self.content_box.set_margin_bottom(10)
+        self.content_box.set_margin_start(10)
+        self.content_box.set_margin_end(10)
+
+        # Cards that move between the layouts (kept, not rebuilt)
         self.brightness_scale = Gtk.Scale.new_with_range(
             Gtk.Orientation.HORIZONTAL, 0, 100, 1
         )
         self.brightness_scale.set_value(get_brightness(self.logging))
         self.brightness_scale.connect("value-changed", self.on_brightness_changed)
-        content_box.pack_start(
-            self._slider_card(self.txt.display_brightness, self.brightness_scale), False, True, 0
-        )
+        self.brightness_card = self._slider_card(self.txt.display_brightness, self.brightness_scale)
 
-        # Blue light
         self.bluelight_scale = Gtk.Scale.new_with_range(
             Gtk.Orientation.HORIZONTAL, 0, 100, 1
         )
@@ -70,26 +137,22 @@ class DisplayTab(Gtk.Box):
         percentage = (saved_gamma - 2500) / 40  # (6500-2500)/100 = 40
         self.bluelight_scale.set_value(percentage)
         self.bluelight_scale.connect("value-changed", self.on_bluelight_changed)
-        content_box.pack_start(
-            self._slider_card(self.txt.display_blue_light, self.bluelight_scale), False, True, 0
-        )
+        self.bluelight_card = self._slider_card(self.txt.display_blue_light, self.bluelight_scale)
 
-        # Multiple displays section (only shown with 2+ connected displays)
         self.display_backend = get_display_backend(self.logging)
-
-        # Display scale
-        self.scale_card = self._build_scale_section()
-        content_box.pack_start(self.scale_card, False, True, 0)
-        self.refresh_scale()
         self._md_syncing = False
         self._md_dialog = None
-        self._md_output_labels = None
         self._md_current = None
+        self.primary_toggles = {}  # output name -> (switch, label)
         self.multi_display_box = self._build_multi_display_section()
-        content_box.pack_start(self.multi_display_box, False, True, 0)
+
+        # Current layout, its per-display sub-tabs and scale controls
+        self._layout = None
+        self.display_notebook = None
+        self.scale_controls = {}
         self.refresh_multi_display()
 
-        scroll_window.add(content_box)
+        scroll_window.add(self.content_box)
         self.pack_start(scroll_window, True, True, 0)
 
         # Connect destroy signal to cleanup
@@ -103,9 +166,9 @@ class DisplayTab(Gtk.Box):
         if self.get_mapped():
             self.is_visible = True
             self.start_auto_update()
-        
+
         self.previous_orientation = "normal"
-    
+
     def _slider_card(self, title, scale, extra=None):
         """A framed card with a bold title above a slider, like the Volume tab's
         (an optional extra widget goes between the title and the slider)"""
@@ -134,109 +197,110 @@ class DisplayTab(Gtk.Box):
         frame.add(box)
         return frame
 
-    SCALE_MIN, SCALE_MAX, SCALE_STEP = 100, 300, 25  # percent
+    # --- layout -----------------------------------------------------------------
+    def _layout_for(self, outputs):
+        """The layout to show: (LAYOUT_SINGLE, active display name or None), or
+        (LAYOUT_MULTI, the displays' sub-tab details)"""
+        if self.display_backend is None or len(outputs) < 2:
+            active = next((o.name for o in outputs if o.enabled), None)
+            return (LAYOUT_SINGLE, active)
+        return (LAYOUT_MULTI, tuple((o.name, self._md_output_label(o), o.enabled, o.is_builtin)
+                                    for o in outputs))
 
-    def _build_scale_section(self):
-        """Card with a display scale slider (100%-300% in 25% steps)"""
-        self._scale_syncing = False
-        self._scale_apply_id = None
-        self._scale_output_names = None
+    def _build_layout(self, layout, outputs):
+        """Fill the content box for the layout, keeping the selected sub-tab"""
+        selected = None
+        if self.display_notebook is not None:
+            page = self.display_notebook.get_nth_page(self.display_notebook.get_current_page())
+            selected = getattr(page, "output_name", None)
 
-        # Display picker, only shown when more than one display is active
-        self.scale_display_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
-        self.scale_display_row.pack_start(Gtk.Label(label=f"{self.txt.msg_tab_display}:"), False, True, 0)
-        self.scale_display_combo = Gtk.ComboBoxText()
-        self.scale_display_combo.set_hexpand(True)
-        self.scale_display_combo.connect("changed", self.on_scale_display_changed)
-        self.scale_display_row.pack_start(self.scale_display_combo, True, True, 0)
-        for child in self.scale_display_row.get_children():
-            child.show_all()
-        self.scale_display_row.set_no_show_all(True)  # shown by refresh_scale
+        # Take the kept cards out before the old layout is destroyed
+        for card in (self.brightness_card, self.bluelight_card, self.multi_display_box):
+            parent = card.get_parent()
+            if parent is not None:
+                parent.remove(card)
+        for child in self.content_box.get_children():
+            child.destroy()
+        self.display_notebook = None
+        self.scale_controls = {}
+        self.primary_toggles = {}
 
-        self.scale_slider = Gtk.Scale.new_with_range(
-            Gtk.Orientation.HORIZONTAL, self.SCALE_MIN, self.SCALE_MAX, self.SCALE_STEP
-        )
-        card = self._slider_card(self.txt.display_scale, self.scale_slider, self.scale_display_row)
-        self.scale_slider.set_increments(self.SCALE_STEP, self.SCALE_STEP)
-        self.scale_slider.set_digits(0)
-        self.scale_slider.connect("format-value", lambda _s, v: f"{int(round(v))}%")
-        self.scale_slider.connect("change-value", self.on_scale_change_value)
-        self.scale_slider.connect("value-changed", self.on_scale_value_changed)
+        kind, details = layout
+        if kind == LAYOUT_SINGLE:
+            self.content_box.pack_start(self.brightness_card, False, True, 0)
+            self.content_box.pack_start(self.bluelight_card, False, True, 0)
+            if details is not None:
+                control = _ScaleControl(self, details)
+                self.scale_controls[details] = control
+                self.content_box.pack_start(control.card, False, True, 0)
+        else:
+            self.content_box.pack_start(self.bluelight_card, False, True, 0)
+            self.content_box.pack_start(self.multi_display_box, False, True, 0)
 
-        card.set_no_show_all(True)  # visibility driven by refresh_scale
-        card.get_child().show_all()
-        return card
+            notebook = Gtk.Notebook()
+            notebook.set_scrollable(True)
+            selected_index = 0
+            for name, label, enabled, builtin in details:
+                page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
+                page.set_margin_top(12)
+                page.output_name = name
+                page.pack_start(self._primary_toggle_card(name), False, True, 0)
+                if enabled:
+                    # brightnessctl controls the backlight: the built-in panel's
+                    if builtin and self.brightness_card.get_parent() is None:
+                        page.pack_start(self.brightness_card, False, True, 0)
+                    control = _ScaleControl(self, name)
+                    self.scale_controls[name] = control
+                    page.pack_start(control.card, False, True, 0)
+                else:
+                    off = Gtk.Label(label=getattr(self.txt, "display_off", "This display is off."))
+                    off.get_style_context().add_class("dim-label")
+                    page.pack_start(off, False, True, 0)
+                tab_label = Gtk.Label(label=self.txt.display_builtin if builtin else self._short_label(name, label))
+                tab_label.set_tooltip_text(label)
+                if name == selected:
+                    selected_index = notebook.get_n_pages()
+                notebook.append_page(page, tab_label)
+            self.display_notebook = notebook
+            self.content_box.pack_start(notebook, False, True, 0)
+            self.content_box.show_all()
+            notebook.set_current_page(selected_index)
 
-    def _scale_target(self):
-        """Name of the display the scale slider controls"""
-        return self.scale_display_combo.get_active_id()
+        self.content_box.show_all()
+        self._layout = layout
 
-    def refresh_scale(self):
-        """Show the scale card (when there's an active display) and sync it"""
-        backend = self.display_backend
-        outputs = []
-        if backend is not None:
-            outputs = [o for o in backend.list_outputs() if o.enabled]
-        self.scale_card.set_visible(bool(outputs))
-        if not outputs or self._scale_apply_id is not None:
-            return  # nothing to show, or the user is still choosing a value
+    def _primary_toggle_card(self, name):
+        """Card with a switch making the display the primary one (in Single
+        mode, the active one)"""
+        frame = Gtk.Frame()
+        frame.set_shadow_type(Gtk.ShadowType.IN)
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        row.set_margin_start(12)
+        row.set_margin_end(12)
+        row.set_margin_top(12)
+        row.set_margin_bottom(12)
+        label = Gtk.Label(xalign=0)
+        row.pack_start(label, True, True, 0)
+        switch = Gtk.Switch()
+        switch.set_valign(Gtk.Align.CENTER)
+        switch.connect("notify::active", self.on_primary_toggled, name)
+        row.pack_end(switch, False, False, 0)
+        frame.add(row)
+        self.primary_toggles[name] = (switch, label)
+        return frame
 
-        self._scale_syncing = True
-        try:
-            names = [(o.name, self._md_output_label(o)) for o in outputs]
-            if names != self._scale_output_names:
-                current = self._scale_target()
-                self.scale_display_combo.remove_all()
-                for name, label in names:
-                    self.scale_display_combo.append(name, label)
-                self._scale_output_names = names
-                ids = [n for n, _ in names]
-                if current not in ids:
-                    current = backend.get_primary(outputs)
-                    current = current if current in ids else ids[0]
-                self.scale_display_combo.set_active_id(current)
-            self.scale_display_row.set_visible(len(outputs) > 1)
+    @staticmethod
+    def _short_label(name, label):
+        """Sub-tab title: the display's make and model, or its output name"""
+        prefix = f"{name} — "
+        return label[len(prefix):] if label.startswith(prefix) else name
 
-            target = next(o for o in outputs if o.name == self._scale_target())
-            self.scale_slider.set_value(round(target.scale * 100))
-        finally:
-            self._scale_syncing = False
-
-    def on_scale_display_changed(self, combo):
-        if not self._scale_syncing:
-            self.refresh_scale()
-
-    def on_scale_change_value(self, scale, scroll, value):
-        """Snap to 25% steps"""
-        step = self.SCALE_STEP
-        snapped = min(self.SCALE_MAX, max(self.SCALE_MIN, round(value / step) * step))
-        if snapped != scale.get_value():
-            scale.set_value(snapped)
-        return True
-
-    def on_scale_value_changed(self, scale):
-        """Apply once the slider has stopped moving, not at every step"""
-        if self._scale_syncing:
-            return
-        if self._scale_apply_id is not None:
-            GLib.source_remove(self._scale_apply_id)
-        self._scale_apply_id = GLib.timeout_add(500, self._apply_scale)
-
-    def _apply_scale(self):
-        self._scale_apply_id = None
-        name = self._scale_target()
-        value = self.scale_slider.get_value() / 100
-        if name and self.display_backend is not None:
-            self.display_backend.set_scale(name, value)
-        # Read back what the compositor settled on (Hyprland may round it)
-        GLib.timeout_add(300, lambda: self.refresh_scale() and False)
-        return False
-
+    # --- multiple displays ------------------------------------------------------
     def _build_multi_display_section(self):
         """Build the GNOME-like Join / Mirror / Single display mode controls"""
         section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 
-        # Card like the slider cards above: title inside, 12px padding
+        # Card like the slider cards: title inside, 12px padding
         frame = Gtk.Frame()
         frame.set_shadow_type(Gtk.ShadowType.IN)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -268,23 +332,8 @@ class DisplayTab(Gtk.Box):
             self.md_mode_buttons[mode] = button
         box.pack_start(mode_box, False, False, 0)
 
-        # Primary display selector
-        primary_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        self.md_primary_label = Gtk.Label(label=self.txt.display_primary)
-        self.md_primary_label.set_halign(Gtk.Align.START)
-        primary_row.pack_start(self.md_primary_label, False, False, 0)
-        self.md_primary_combo = Gtk.ComboBoxText()
-        self.md_primary_combo.set_hexpand(True)
-        self.md_primary_combo.connect("changed", self.on_md_primary_changed)
-        primary_row.pack_start(self.md_primary_combo, True, True, 0)
-        box.pack_start(primary_row, False, False, 0)
-
         frame.add(box)
         section.pack_start(frame, False, True, 0)
-
-        # Visibility is driven by refresh_multi_display, not by show_all()
-        frame.show_all()
-        section.set_no_show_all(True)
         return section
 
     def _md_output_label(self, output):
@@ -301,23 +350,26 @@ class DisplayTab(Gtk.Box):
         return MODE_JOIN
 
     def _md_update_labels(self, mode):
-        self.md_primary_label.set_text(
-            self.txt.display_active if mode == MODE_SINGLE else self.txt.display_primary
-        )
+        text = self.txt.display_active if mode == MODE_SINGLE else self.txt.display_primary
+        for _switch, label in self.primary_toggles.values():
+            label.set_text(text)
 
     def refresh_multi_display(self, *args):
-        """Sync the multi-display controls with the current output state"""
-        self.refresh_scale()
-        if self.display_backend is None:
-            self.multi_display_box.set_visible(False)
-            return True
+        """Sync the layout and the controls with the current displays"""
         if self._md_dialog is not None:
             return True  # don't fight the user while they confirm a change
 
-        outputs = self.display_backend.list_outputs()
-        visible = len(outputs) >= 2
-        self.multi_display_box.set_visible(visible)
-        if not visible:
+        outputs = self.display_backend.list_outputs() if self.display_backend is not None else []
+        layout = self._layout_for(outputs)
+        if layout != self._layout:
+            self._build_layout(layout, outputs)
+
+        for o in outputs:
+            control = self.scale_controls.get(o.name)
+            if control is not None and o.enabled:
+                control.sync(o.scale)
+
+        if layout[0] != LAYOUT_MULTI:
             self._md_current = None
             return True
 
@@ -325,13 +377,8 @@ class DisplayTab(Gtk.Box):
         primary = self.display_backend.get_primary(outputs)
         self._md_syncing = True
         try:
-            labels = [(o.name, self._md_output_label(o)) for o in outputs]
-            if labels != self._md_output_labels:
-                self.md_primary_combo.remove_all()
-                for name, label in labels:
-                    self.md_primary_combo.append(name, label)
-                self._md_output_labels = labels
-            self.md_primary_combo.set_active_id(primary)
+            for name, (switch, _label) in self.primary_toggles.items():
+                switch.set_active(name == primary)
             self.md_mode_buttons[mode].set_active(True)
 
             mirror_button = self.md_mode_buttons[MODE_MIRROR]
@@ -355,12 +402,38 @@ class DisplayTab(Gtk.Box):
         if self._md_syncing or not button.get_active():
             return
         self._md_update_labels(mode)
-        self._md_request(mode, self.md_primary_combo.get_active_id())
+        self._md_request(mode, self._md_current[1] if self._md_current else None)
 
-    def on_md_primary_changed(self, combo):
+    def on_primary_toggled(self, switch, _param, name):
         if self._md_syncing:
             return
-        self._md_request(self._md_active_mode(), combo.get_active_id())
+        if not switch.get_active():
+            # The primary can't be switched off, only replaced by another.
+            # Switched back on once this handler is done: GTK delays the
+            # notification of a change made to the switch from its own handler
+            if self._md_current and self._md_current[1] == name:
+                GLib.idle_add(self._set_toggle_on, switch)
+            return
+        # Only one display is the primary: switch the others off right away
+        self._md_syncing = True
+        try:
+            for other, (other_switch, _label) in self.primary_toggles.items():
+                if other != name:
+                    other_switch.set_active(False)
+        finally:
+            self._md_syncing = False
+        self._md_request(self._md_active_mode(), name)
+        if self._md_dialog is None:
+            # Nothing was applied (or it failed): show the actual state again
+            self.refresh_multi_display()
+
+    def _set_toggle_on(self, switch):
+        self._md_syncing = True
+        try:
+            switch.set_active(True)
+        finally:
+            self._md_syncing = False
+        return False
 
     def _md_request(self, mode, primary):
         """Apply a display mode, then ask to keep it or revert"""
@@ -397,6 +470,7 @@ class DisplayTab(Gtk.Box):
         dialog.connect("response", on_response)
         dialog.show_all()
 
+    # --- brightness and blue light ---------------------------------------------
     def on_brightness_changed(self, scale):
         """Handle brightness scale changes"""
         value = int(scale.get_value())
@@ -460,6 +534,7 @@ class DisplayTab(Gtk.Box):
         # Return True to keep the timer running if this was called by the timer
         return True
 
+    # --- visibility and refresh --------------------------------------------------
     def on_mapped(self, widget):
         """Called when the widget becomes visible"""
         self.is_visible = True
