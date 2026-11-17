@@ -52,6 +52,37 @@ def wifi_band(freq: str) -> str:
     return "6 GHz"
 
 
+BANDS = ("2.4 GHz", "5 GHz", "6 GHz")
+
+
+def _merge_access_points(access_points: List[Dict]) -> List[Dict]:
+    """One entry per network: nmcli lists every access point, so a network
+    served by several (or on several bands) shows up several times. Access
+    points with the same SSID and security are merged; a different security
+    means a different network that happens to share the name.
+
+    The merged signal is the connected access point's when connected (the
+    one actually in use), otherwise the strongest; the bands are all of them,
+    e.g. "2.4 / 5 GHz"."""
+    merged: Dict[tuple, Dict] = {}
+    bands: Dict[tuple, set] = {}
+    for ap in access_points:
+        key = (ap["ssid"], ap["security"])
+        network = merged.get(key)
+        if network is None:
+            merged[key] = network = dict(ap)
+            bands[key] = set()
+        elif ap["in_use"] or (not network["in_use"] and int(ap["signal"]) > int(network["signal"])):
+            network["signal"] = ap["signal"]
+        network["in_use"] = network["in_use"] or ap["in_use"]
+        if ap["band"]:
+            bands[key].add(ap["band"])
+    for key, network in merged.items():
+        found = [b.split()[0] for b in BANDS if b in bands[key]]
+        network["band"] = f"{' / '.join(found)} GHz" if found else ""
+    return list(merged.values())
+
+
 def get_wifi_networks(logging: Logger, rescan: bool = False) -> List[Dict[str, str]]:
     """Get list of available WiFi networks
 
@@ -114,7 +145,7 @@ def get_wifi_networks(logging: Logger, rescan: bool = False) -> List[Dict[str, s
             if len(parts) >= 4:
                 in_use = "*" in parts[0]
                 ssid = parts[1]
-                signal = parts[2] if parts[2].strip() else "0"
+                signal = parts[2] if parts[2].strip().isdigit() else "0"
                 security = parts[3] if parts[3].strip() != "" else "none"
                 # Last field, so it's found even if the SSID has a ':' in it
                 band = wifi_band(parts[-1]) if len(parts) >= 5 else ""
@@ -130,7 +161,7 @@ def get_wifi_networks(logging: Logger, rescan: bool = False) -> List[Dict[str, s
                             "band": band,
                         }
                     )
-        return networks
+        return _merge_access_points(networks)
     except Exception as e:
         logging.log(LogLevel.Error, f"Failed getting WiFi networks: {e}")
         return []
