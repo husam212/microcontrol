@@ -5,23 +5,19 @@ import gi
 from utils.translations import English, Spanish  # type: ignore
 gi.require_version('Gtk', '3.0')
 import subprocess
-import os
 import threading
-from datetime import datetime
-from gi.repository import Gtk, GLib,Gdk  # type: ignore
+from gi.repository import Gtk, GLib  # type: ignore
 from utils.logger import LogLevel, Logger
 from tools import power
 
 
 class BatteryTab(Gtk.Box):
-    def __init__(self, logging: Logger, txt: English|Spanish, parent=None):
+    def __init__(self, logging: Logger, txt: English|Spanish):
         Gtk.Box.__init__(self, orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self.txt = txt
         self.logging = logging
 
-        self.last_refresh_time = datetime.now()
-
-        self.__load_gui(parent)
+        self.__load_gui()
 
         # Power profile names
         self.profile_names = {
@@ -284,22 +280,15 @@ class BatteryTab(Gtk.Box):
         # Show all widgets
         self.content_box.show_all()
 
-        # Update refresh time
-        self.last_refresh_time = datetime.now()
-
         return True
 
-    def __load_gui(self, parent):
+    def __load_gui(self):
         self.set_margin_top(15)
         self.set_margin_bottom(15)
         self.set_margin_start(15)
         self.set_margin_end(15)
         self.set_hexpand(True)
         self.set_vexpand(True)
-
-        self.parent = parent
-
-
 
         # Create scrollable content
         self.scroll_window = Gtk.ScrolledWindow()

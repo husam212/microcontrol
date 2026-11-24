@@ -258,13 +258,11 @@ class BluetoothManager:
 
                 devices.append(
                     {
-                        "mac": properties.get("Address", ""),
                         "name": properties.get("Name", ""),
                         # The name the user gave it (the Name if none)
                         "alias": properties.get("Alias", ""),
                         "paired": properties.get("Paired", False),
                         "connected": properties.get("Connected", False),
-                        "trusted": properties.get("Trusted", False),
                         "icon": properties.get("Icon", ""),
                         "path": path,
                     }
@@ -299,46 +297,6 @@ class BluetoothManager:
             adapter.StopDiscovery()
         except Exception as e:
             self.logging.log(LogLevel.Error, f"Failed stopping discovery: {e}")
-
-    def connect_device(self, device_path: str) -> bool:
-        """Connect to a Bluetooth device, set it as the default audio sink, and fetch battery info."""
-        try:
-            if self.bus is None:
-                self.logging.log(LogLevel.Error, "D-Bus connection not initialized")
-                return False
-
-            device = dbus.Interface(
-                self.bus.get_object(BLUEZ_SERVICE_NAME, device_path),
-                BLUEZ_DEVICE_INTERFACE,
-            )
-            device.Connect()
-
-            # Wait for the device to register
-            import time
-
-            time.sleep(2)
-
-            # Fetch device name
-            properties = dbus.Interface(
-                self.bus.get_object(BLUEZ_SERVICE_NAME, device_path), DBUS_PROP_IFACE
-            )
-            device_name = properties.Get(BLUEZ_DEVICE_INTERFACE, "Alias")
-
-            battery_percentage: Optional[int] = self.get_device_battery(device_path)
-            battery_info: str = ''
-
-            if battery_percentage is None:
-                battery_info = ""
-            else:
-                battery_info = f"Battery: {battery_percentage}%"
-
-            subprocess.run(["notify-send", DEFAULT_NOTIFY_SUBJECT,
-                            f"{device_name} connected.\n{battery_info}"])
-
-            return True
-        except Exception as e:
-            self.logging.log(LogLevel.Error, f"Failed connecting to device: {e}")
-            return False
 
     def connect_device_async(self, device_path: str, callback: Callable[[bool], None]) -> None:
         """Connect to a Bluetooth device asynchronously
@@ -421,32 +379,6 @@ class BluetoothManager:
         thread = threading.Thread(target=run_connect, daemon=True)
         thread.start()
 
-    def disconnect_device(self, device_path: str) -> bool:
-        """Disconnect from a Bluetooth device"""
-        try:
-            if self.bus is None:
-                self.logging.log(LogLevel.Error, "D-Bus connection not initialized")
-                return False
-
-            device = dbus.Interface(
-                self.bus.get_object(BLUEZ_SERVICE_NAME, device_path),
-                BLUEZ_DEVICE_INTERFACE,
-            )
-            properties = dbus.Interface(
-                self.bus.get_object(BLUEZ_SERVICE_NAME, device_path), DBUS_PROP_IFACE
-            )
-            # Fetch device name
-            device_name = "Bluetooth Device"
-            device_name = properties.Get(BLUEZ_DEVICE_INTERFACE, "Name")
-            device.Disconnect()
-
-            subprocess.run(["notify-send", DEFAULT_NOTIFY_SUBJECT, f"{device_name} disconnected."])
-
-            return True
-        except Exception as e:
-            self.logging.log(LogLevel.Error, f"Failed disconnecting from device: {e}")
-            return False
-
     def disconnect_device_async(self, device_path: str, callback: Callable[[bool], None]) -> None:
         """Disconnect from a Bluetooth device asynchronously
 
@@ -525,9 +457,6 @@ class BluetoothManager:
         # Start the disconnection process in a separate real thread
         thread = threading.Thread(target=run_disconnect, daemon=True)
         thread.start()
-        
-    def bluetooth_supported(self) -> bool:
-        return bool(self.adapter_path)
 
 
 # Create a global instance of the BluetoothManager
@@ -562,19 +491,6 @@ def remove_audio_routing_callback(callback: Callable[[str], None], logging: Logg
     manager = get_bluetooth_manager(logging)
     if callback in manager.audio_routing_callbacks:
         manager.audio_routing_callbacks.remove(callback)
-
-def get_current_audio_sink(logging: Logger) -> Optional[str]:
-    """Get the currently active audio sink name
-    
-    Returns:
-        str :Name of current audio sink or None if not available
-    """
-    try:
-        output = subprocess.getoutput("pactl get-default-sink")
-        return output.strip() if output else None
-    except Exception as e:
-        logging.log(LogLevel.Error, f"Failed getting current audio sink: {e}")
-        return None
 
 def restore_last_sink(logging: Logger):
     """Restore the last used audio sink device after startup.
@@ -671,15 +587,6 @@ def stop_discovery(logging: Logger) -> None:
     get_bluetooth_manager(logging).stop_discovery()
 
 
-def connect_device(device_path: str, logging: Logger) -> bool:
-    return get_bluetooth_manager(logging).connect_device(device_path)
-
-
-def disconnect_device(device_path: str, logging: Logger) -> bool:
-    return get_bluetooth_manager(logging).disconnect_device(device_path)
-
-
-# Add async versions to the convenience functions
 def connect_device_async(device_path: str, callback: Callable[[bool], None], logging: Logger) -> None:
     get_bluetooth_manager(logging).connect_device_async(device_path, callback)
 
@@ -711,10 +618,6 @@ def forget_device(device_path: str, logging: Logger) -> bool:
             logging.log(LogLevel.Error, "D-Bus connection not initialized")
             return False
 
-        device = dbus.Interface(
-            manager.bus.get_object(BLUEZ_SERVICE_NAME, device_path),
-            BLUEZ_DEVICE_INTERFACE,
-        )
         adapter = dbus.Interface(
             manager.bus.get_object(BLUEZ_SERVICE_NAME, manager.adapter_path),
             BLUEZ_ADAPTER_INTERFACE,

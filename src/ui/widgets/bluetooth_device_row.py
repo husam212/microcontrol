@@ -23,7 +23,6 @@ class BluetoothDeviceRow(Gtk.ListBoxRow):
 
         # Store device info
         self.device_path = device['path']
-        self.mac_address = device['mac']
         self.device_name = device['name']
         # Shown as the title, with the device's own name below it if renamed
         self.alias = device.get('alias') or self.device_name
@@ -175,29 +174,3 @@ class BluetoothDeviceRow(Gtk.ListBoxRow):
         if level >= 5:
             return "battery-caution-symbolic"
         return "battery-empty-symbolic"
-
-    def get_battery_level_icon(self):
-        """Return battery level icon suffix based on percentage"""
-        if not self.battery_percentage:
-            return "missing"
-        if self.battery_percentage >= 90:
-            return "100"
-        elif self.battery_percentage >= 70:
-            return "080"
-        elif self.battery_percentage >= 50:
-            return "060"
-        elif self.battery_percentage >= 30:
-            return "040"
-        elif self.battery_percentage >= 10:
-            return "020"
-        else:
-            return "000"
-
-    def get_mac_address(self):
-        return self.mac_address
-
-    def get_device_name(self):
-        return self.device_name
-
-    def get_is_connected(self):
-        return self.is_connected

@@ -11,7 +11,6 @@ from gi.repository import Gtk, GLib  # type: ignore
 
 from utils.settings import load_settings, save_settings
 from tools.display import get_brightness, set_brightness
-from tools.globals import get_current_session
 from tools.multi_display import (
     MODE_JOIN, MODE_MIRROR, MODE_SINGLE, detect_mode, get_display_backend,
 )
@@ -192,7 +191,6 @@ class DisplayTab(Gtk.Box):
         self.multi_display_timeout_id = None
         self.multi_display_interval = 3000  # milliseconds, catches hotplugged displays
         self.is_visible = False
-        self.session = get_current_session()
 
         self.set_margin_start(15)
         self.set_margin_end(15)
@@ -256,11 +254,8 @@ class DisplayTab(Gtk.Box):
             self.is_visible = True
             self.start_auto_update()
 
-        self.previous_orientation = "normal"
-
-    def _slider_card(self, title, scale, extra=None):
-        """A framed card with a bold title above a slider, like the Volume tab's
-        (an optional extra widget goes between the title and the slider)"""
+    def _slider_card(self, title, scale):
+        """A framed card with a bold title above a slider, like the Volume tab's"""
         frame = Gtk.Frame()
         frame.set_shadow_type(Gtk.ShadowType.IN)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -273,8 +268,6 @@ class DisplayTab(Gtk.Box):
         title_label.set_markup(f"<b>{GLib.markup_escape_text(title)}</b>")
         title_label.set_halign(Gtk.Align.START)
         box.pack_start(title_label, False, True, 0)
-        if extra is not None:
-            box.pack_start(extra, False, True, 0)
 
         # Same slider settings as the Volume tab
         scale.set_draw_value(True)

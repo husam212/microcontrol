@@ -1,17 +1,10 @@
 #!/usr/bin/env python3
-import os
-import subprocess
 import gi
 
-from tools.bluetooth import get_bluetooth_manager
-from tools.wifi import wifi_supported
-from utils.logger import LogLevel
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk # type: ignore
 
-from tools.session import get_current_session  # noqa: F401 (re-exported)
-    
-    
+
 # css for wifi_tab
 def get_wifi_css():
     css_provider = Gtk.CssProvider()
@@ -41,47 +34,9 @@ def get_wifi_css():
             padding: 10px;
         }
     """)
-    
+
     Gtk.StyleContext.add_provider_for_screen(
         Gdk.Screen.get_default(),
         css_provider,
         Gtk.STYLE_PROVIDER_PRIORITY_USER
     )
-
-# check for battery suppoert 
-def battery_supported() -> bool:
-    try:
-        result = subprocess.run(
-            "upower -e", shell=True, capture_output=True, text=True
-        )
-        if result.returncode == 0 and "/battery_" in result.stdout:
-            return True
-        return False
-    except Exception:
-        return False
-    
-def check_hardware_support(self, visibility, logging):
-    """Check if wifi, bluetooth, battery is supported or not"""
-    
-    bluetooth_manager = get_bluetooth_manager(logging)
-    hardware_checks = {
-        "Wi-Fi": {
-            "check": wifi_supported,
-            "log_message": "No Wi-Fi adapter found, skipping Wi-Fi tab",
-        },
-        "Power": {
-            "check": battery_supported,
-            "log_message": "No battery found, skipping Power tab",
-        },
-        "Bluetooth": {
-            "check": bluetooth_manager.bluetooth_supported,
-            "log_message": "No Bluetooth adapter found, skipping Bluetooth tab",
-        },
-    }
-    for tab_name, check_info in hardware_checks.items():
-        try:
-            if not check_info["check"]():
-                logging.log(LogLevel.Warn, check_info["log_message"])
-                visibility[tab_name] = False
-        except Exception as e:
-            logging.log(LogLevel.Error, f"Error checking {tab_name} support: {e}")

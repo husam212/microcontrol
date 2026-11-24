@@ -2,31 +2,9 @@ import datetime
 from enum import Enum
 import os
 import re
-import sys
 from sys import stderr, stdout
 import time
 from typing import Dict, Optional
-
-CRASH_LOG_DIR = os.path.join(
-    os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")),
-    "microcontrol",
-    "crashes"
-)
-
-def emergency_log(message: str, stack: str = "") -> None:
-    """Emergency logging for crashes"""
-    try:
-        os.makedirs(CRASH_LOG_DIR, exist_ok=True)
-        crash_file = os.path.join(
-            CRASH_LOG_DIR,
-            f"crash_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-        )
-        with open(crash_file, "w") as f:
-            f.write(f"CRASH: {message}\n")
-            f.write(f"Python: {sys.version}\n")
-            f.write(f"Stack:\n{stack}\n")
-    except:
-        pass
 
 from utils.arg_parser import ArgParse
 from utils.pair import Pair
@@ -179,8 +157,6 @@ class Logger:
 
         fmt = f"{get_current_time()} {label} {redacted_message}"
 
-        self.__last_log_msg = fmt
-
         if log_level != LogLevel.Error and self.__should_log == False:
             return
 
@@ -193,9 +169,6 @@ class Logger:
             print(fmt, file=stdout)
         elif log_level == LogLevel.Debug and self.__log_level < 1:
             print(fmt, file=stdout)
-
-    def get_last_log_msg(self) -> str:
-        return self.__last_log_msg
 
     def __log_to_file(self, message: str):
         if not hasattr(self, '_Logger__log_file') or self.__log_file is None:

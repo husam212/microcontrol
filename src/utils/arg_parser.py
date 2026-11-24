@@ -17,7 +17,6 @@ def sprint(file: Optional[TextIO], *args) -> None:
 
 class ArgParse:
     def __init__(self, args: List[str]) -> None:
-        self.__bin: str = ""
         self.__args: Dict[str, List[str | Dict[str, str]]] = {"long": [], "short": []}
         previous_arg_type: str = ""
 
@@ -25,7 +24,7 @@ class ArgParse:
         # ? and also makes it not dependent on a lot of string operations
         for i, arg in enumerate(args):
             if i == 0:
-                self.__bin = arg
+                continue
 
             elif arg.startswith("--"):
                 self.__args["long"].append(arg[2:])
@@ -154,8 +153,6 @@ class ArgParse:
             # Color definitions
             RESET = "\033[0m"
             BOLD = "\033[1m"
-            UNDERLINE = "\033[4m"
-            CYAN = "\033[36m"
             GREEN = "\033[32m"
             YELLOW = "\033[33m"
             BLUE = "\033[34m"
@@ -164,7 +161,7 @@ class ArgParse:
             WHITE = "\033[97m"
         else:
             # No colors if terminal doesn't support them
-            RESET = BOLD = UNDERLINE = CYAN = GREEN = YELLOW = BLUE = MAGENTA = GRAY = WHITE = ""
+            RESET = BOLD = GREEN = YELLOW = BLUE = MAGENTA = GRAY = WHITE = ""
 
         # Usage
         self.arg_print(f"{BOLD}USAGE:{RESET}")

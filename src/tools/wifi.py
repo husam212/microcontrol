@@ -194,71 +194,6 @@ def get_connection_info(ssid: str, logging: Logger) -> Dict[str, str]:
         return {}
 
 
-def get_network_details(logging: Logger) -> Dict[str, str]:
-    """Get current network details: IP address, DNS, and gateway"""
-
-    details = {"ip_address": "N/A", "dns": "N/A", "gateway": "N/A"}
-    try:
-        result = subprocess.run(
-            ["nmcli", "-t", "-f", "NAME,DEVICE,STATE",
-                "connection", "show", "--active"],
-            capture_output=True,
-            text=True,
-        )
-        active_connections = result.stdout.strip().split("\n")
-        connection_name = None
-        device_name = None
-        for line in active_connections:
-            parts = line.split(":")
-            if len(parts) >= 3 and parts[2] == "activated":
-                connection_name = parts[0]
-                device_name = parts[1]
-                break
-        if not connection_name or not device_name:
-            return details
-
-        # Get IP address
-        ip_result = subprocess.run(
-            ["nmcli", "-t", "-f", "IP4.ADDRESS", "device", "show", device_name],
-            capture_output=True,
-            text=True,
-        )
-        for line in ip_result.stdout.strip().split("\n"):
-            if line.startswith("IP4.ADDRESS"):
-                ip = line.split(":", 1)[1].split("/")[0]
-                details["ip_address"] = ip
-                break
-
-        # Get DNS server
-        dns_result = subprocess.run(
-            ["nmcli", "-t", "-f", "IP4.DNS", "device", "show", device_name],
-            capture_output=True,
-            text=True,
-        )
-        dns_servers = []
-        for line in dns_result.stdout.strip().split("\n"):
-            if line.startswith("IP4.DNS"):
-                dns_servers.append(line.split(":", 1)[1])
-        if dns_servers:
-            details["dns"] = ", ".join(dns_servers)
-
-        # Get gateway
-        gw_result = subprocess.run(
-            ["nmcli", "-t", "-f", "IP4.GATEWAY", "device", "show", device_name],
-            capture_output=True,
-            text=True,
-        )
-        for line in gw_result.stdout.strip().split("\n"):
-            if line.startswith("IP4.GATEWAY"):
-                details["gateway"] = line.split(":", 1)[1]
-                break
-
-        return details
-    except Exception as e:
-        logging.log(LogLevel.Error, f"Failed getting network details: {e}")
-        return details
-
-
 def connect_network(
     ssid: str, logging: Logger, password: str = "", remember: bool = True
 ) -> bool:
@@ -504,52 +439,6 @@ def forget_network(ssid: str, logging: Logger) -> bool:
     except subprocess.CalledProcessError as e:
         logging.log(LogLevel.Error, f"Failed removing network: {e}")
         return False
-
-
-def get_network_speed(logging: Logger) -> Dict[str, float]:
-    try:
-        # Get network interfaces for wifi and ethernett
-        interfaces_output = subprocess.getoutput(
-            "nmcli -t -f DEVICE,TYPE device | grep -E 'wifi|ethernet'"
-        ).split("\n")
-        wifi_interfaces = [line.split(
-            ":")[0] for line in interfaces_output if "wifi" in line and ":" in line]
-        ethernet_interfaces = [line.split(
-            ":")[0] for line in interfaces_output if "ethernet" in line and ":" in line]
-
-        def is_interface_up(interface: str) -> bool:
-            operstate = subprocess.getoutput(
-                f"cat /sys/class/net/{interface}/operstate").strip()
-            return operstate == "up"
-
-        interface = None
-        for iface in wifi_interfaces:
-            if is_interface_up(iface):
-                interface = iface
-                break
-
-        if interface is None:
-            for iface in ethernet_interfaces:
-                if is_interface_up(iface):
-                    interface = iface
-                    break
-
-        if interface is None:
-            return {"rx_bytes": 0, "tx_bytes": 0, "wifi_supported": False}
-
-        rx_bytes = int(
-            subprocess.getoutput(
-                f"cat /sys/class/net/{interface}/statistics/rx_bytes")
-        )
-        tx_bytes = int(
-            subprocess.getoutput(
-                f"cat /sys/class/net/{interface}/statistics/tx_bytes")
-        )
-
-        return {"rx_bytes": rx_bytes, "tx_bytes": tx_bytes, "wifi_supported": True}
-    except Exception as e:
-        logging.log(LogLevel.Error, f"Failed getting network speed: {e}")
-        return {"rx_bytes": 0, "tx_bytes": 0, "wifi_supported": False}
 
 
 def get_pillow_install_instructions():

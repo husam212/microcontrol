@@ -137,8 +137,7 @@ class MicroControl(Gtk.Window):
             screen, css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
-        # Load animations CSS
-        self.animations_css_provider = load_animations_css()
+        load_animations_css()
 
         self.notebook = Gtk.Notebook()
         # Dialogs are shown inside the window, over the notebook

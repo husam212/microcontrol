@@ -283,27 +283,6 @@ def _ensure_app_icons(apps: List[Dict[str, str]]) -> None:
             app["icon"] = app["name"].lower().replace(" ", "-")
 
 
-def get_sink_name_by_id(sink_id: str, logging: Logger) -> str:
-    """Get the name of a sink by its ID number
-
-    Args:
-        sink_id (str): The sink ID (number)
-
-    Returns:
-        str: The sink name
-    """
-    try:
-        output = subprocess.getoutput("pactl list sinks short")
-        for line in output.split("\n"):
-            parts = line.split()
-            if parts and parts[0] == sink_id:
-                return parts[1]  # The second column is the sink name
-        return ""
-    except Exception as e:
-        logging.log(LogLevel.Error, f"Failed getting sink name: {e}")
-        return ""
-    
-    
 def get_sink_identifier_by_id(sink_id: str, logging: Logger) -> Optional[str]:
     """Get the identifier of a sink by its ID number
 
@@ -877,27 +856,6 @@ def set_application_mic_volume(app_id: str, value: int, logging: Logger) -> None
         )
     except subprocess.CalledProcessError as e:
         logging.log(LogLevel.Error, f"Failed setting application mic volume: {e}")
-
-def get_active_sink(logging: Logger) -> Optional[Dict[str, str | bool]]:
-    """Get the currently active audio sink
-    
-    Returns:
-        Optional[Dict[str, str | bool]]: Active sink info or None if not available
-    """
-    try:
-        sink_name = subprocess.getoutput("pactl get-default-sink").strip()
-        if not sink_name:
-            return None
-            
-        sinks = get_sinks(logging)
-        for sink in sinks:
-            if sink.get("name") == sink_name:
-                return sink
-        return None
-    except Exception as e:
-        logging.log(LogLevel.Error, f"Failed getting active sink: {e}")
-        return None
-
 
 def get_cards(logging: Logger) -> List[Dict]:
     """Sound cards (built-in audio, Bluetooth devices, ...) and their profiles,

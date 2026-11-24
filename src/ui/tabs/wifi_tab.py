@@ -34,9 +34,7 @@ class WiFiTab(Gtk.Box):
         self.txt = txt
         self.logging = logging
         self.logging.log(LogLevel.Debug, "WiFi tab: Starting initialization")
-        
-        # Debug container visibility
-        self._debug_containers = []
+
         self.set_margin_start(15)
         self.set_margin_end(15)
         self.set_margin_top(15)
@@ -50,7 +48,8 @@ class WiFiTab(Gtk.Box):
         # instead of clearing to a spinner (which made the list flicker)
         self._has_network_rows = False
 
-        if not wifi_supported:
+        wifi_available = wifi_supported()
+        if not wifi_available:
             self.logging.log(LogLevel.Warn, "WiFi is not supported on this machine")
 
         # Add refresh button with expandable animation
@@ -86,7 +85,7 @@ class WiFiTab(Gtk.Box):
         self.refresh_button.connect("leave-notify-event", self.on_refresh_leave)
 
         # Disable refresh button if WiFi is not supported
-        if not wifi_supported:
+        if not wifi_available:
             self.refresh_button.set_sensitive(False)
 
         # WiFi power switch, next to the refresh button
@@ -95,7 +94,7 @@ class WiFiTab(Gtk.Box):
         self.power_switch.set_valign(Gtk.Align.CENTER)
         self.power_switch.set_tooltip_text(wifi_power_text)
 
-        if wifi_supported:
+        if wifi_available:
             self.power_switch.set_active(get_wifi_status(self.logging))
             self.power_switch.connect("notify::active", self.on_power_switched)
         else:
@@ -165,40 +164,6 @@ class WiFiTab(Gtk.Box):
         self.tab_visible = False
 
         return False
-
-    def load_networks(self):
-        """Load WiFi networks list - to be called after all tabs are loaded"""
-        self.logging.log(LogLevel.Info, "Loading WiFi networks after tabs initialization")
-
-        # Only load networks if the tab is visible
-        if not self.tab_visible:
-            self.logging.log(LogLevel.Info, "WiFi tab not visible, skipping initial network loading")
-            return
-
-        # Add a loading indicator
-        row = Gtk.ListBoxRow()
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        box.set_margin_start(10)
-        box.set_margin_end(10)
-        box.set_margin_top(10)
-        box.set_margin_bottom(10)
-
-        spinner = Gtk.Spinner()
-        spinner.start()
-        box.pack_start(spinner, False, False, 0)
-
-        label = Gtk.Label(label="Loading networks...")
-        label.set_halign(Gtk.Align.START)
-        box.pack_start(label, True, True, 0)
-
-        row.add(box)
-        self.networks_box.add(row)
-        self.networks_box.show_all()
-
-        # Start network scan in background thread
-        thread = threading.Thread(target=self._load_networks_thread)
-        thread.daemon = True
-        thread.start()
 
     def _load_networks_thread(self, rescan=False):
         """Background thread to load WiFi networks"""

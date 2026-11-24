@@ -296,11 +296,3 @@ def get_manager() -> OutputManager:
             _manager = OutputManager()
             atexit.register(_manager.close)
         return _manager
-
-
-def available() -> bool:
-    try:
-        get_manager()
-        return True
-    except OutputManagementError:
-        return False
